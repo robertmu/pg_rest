@@ -1,0 +1,49 @@
+{
+    "name": "pg_rest",
+    "abstract": "Rest api for PostgreSQL",
+    "description": "Rest api for PostgreSQL.",
+    "version": "0.1.0",
+    "maintainer": "\"Robert Mu\" <dbx_c@hotmail.com>",
+    "license": "lgpl_3_0",
+    "prereqs": {
+       "runtime": {
+          "requires": {
+             "PostgreSQL": "9.4.0"
+          }
+       }
+    },
+    "provides": {
+        "pg_rest": {
+            "abstract": "Rest api for PostgreSQL",
+            "file": "sql/pg_rest--0.1.sql",
+            "docfile": "README.md",
+            "version": "0.1.0"
+        }
+    },
+    "release_status": "stable",
+    "resources": {
+        "homepage": "https://github.com/robertmu/pg_rest",
+        "bugtracker": {
+            "web": "https://github.com/robertmu/pg_rest/issues",
+            "mailto": "dbx_c@hotmail.com"
+        },
+        "repository": {
+          "url":  "git://github.com/robertmu/pg_rest.git",
+          "web":  "https://github.com/robertmu/pg_rest",
+          "type": "git"
+        }
+    },
+
+    "generated_by": "\"Robert Mu\" <dbx_c@hotmail.com>",
+
+    "tags": [
+        "rest",
+        "http",
+        "scale-out"
+    ],
+
+    "meta-spec": {
+        "version": "1.0.0",
+        "url": "http://pgxn.org/meta/spec.txt"
+    }
+}

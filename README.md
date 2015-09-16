@@ -1,2 +1,1 @@
-# pg_rest
-rest api for postgresql
+doc/README.md
