@@ -1,0 +1,82 @@
+#ifndef PG_REST_CONFIG_H
+#define PG_REST_CONFIG_H 1
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Defined if libevent headers and library are present */
+#undef HAVE_LIBEVENT
+
+/* Define to 1 if libjson is present */
+#undef HAVE_LIBJSON
+
+/* Define to 1 if libxml2 is present */
+#undef HAVE_LIBXML
+
+/* Define to 1 if you have the <libxml/parser.h> header file. */
+#undef HAVE_LIBXML_PARSER_H
+
+/* Define to 1 if you have the <libxml/tree.h> header file. */
+#undef HAVE_LIBXML_TREE_H
+
+/* Define to 1 if you have the <libxml/xpathInternals.h> header file. */
+#undef HAVE_LIBXML_XPATHINTERNALS_H
+
+/* Define to 1 if you have the <libxml/xpath.h> header file. */
+#undef HAVE_LIBXML_XPATH_H
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
+
+/* pgrest build date */
+#undef PGREST_BUILD_DATE
+
+/* pgrest library debug (0=disabled) */
+#undef PGREST_DEBUG
+
+/* pg_rest libxml2 version */
+#undef PGREST_LIBXML2_VERSION
+
+/* Enable pg_rest profiling (0=disabled) */
+#undef PGREST_PROFILE
+
+/* pg_rest version */
+#undef PGREST_VERSION
+
+/* Location of PostgreSQL locale directory */
+#undef PGSQL_LOCALEDIR
+
+/* PostgreSQL server version */
+#undef PGSQL_VERSION
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+#endif /* PG_REST_CONFIG_H */

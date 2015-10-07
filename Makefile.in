@@ -1,0 +1,52 @@
+# **********************************************************************
+# *
+# * pg_rest - Rest api for PostgreSQL
+# * https://github.com/robertmu/pg_rest
+# * Copyright 2015 Robert Mu
+# *
+# * This is free software; you can redistribute and/or modify it under
+# * the terms of the GNU General Public Licence. See the COPYING file.
+# *
+# **********************************************************************
+
+EXTENSION=@PGREST_EXTENSION@
+EXTVERSION=@PGREST_VERSION@
+MODULE_big=@PGREST_EXTENSION@-@PGREST_VERSION@
+MODULEDIR=contrib/$(MODULE_big)
+
+# installation scripts
+DATA = $(wildcard updates/*--*.sql)
+
+# documentation and executables
+DOCS = $(wildcard doc/*.md)
+SCRIPTS = $(wildcard bin/*)
+
+# compilation configuration
+OBJS = $(patsubst %.c,%.o,$(wildcard src/*.c))
+PG_CPPFLAGS += @CPPFLAGS@ -Iinclude
+SHLIB_LINK += @SHLIB_LINK@
+EXTRA_CLEAN += $(addprefix src/,*.gcno *.gcda) # clean up after profiling runs
+
+# test configuration
+TESTS = $(wildcard test/sql/*.sql)
+REGRESS = $(patsubst test/sql/%.sql,%,$(TESTS))
+REGRESS_OPTS = --inputdir=test --load-language=plpgsql
+REGRESS_OPTS += --launcher=./test/launcher.sh # use custom launcher for tests
+
+# add coverage flags if requested
+ifeq (@PGREST_COVERAGE@,yes)
+PG_CPPFLAGS += --coverage
+SHLIB_LINK += --coverage
+endif
+
+# be explicit about the default target
+all:
+
+# delegate to subdirectory makefiles as needed
+include sql/Makefile
+include test/Makefile
+
+# build with pgxs
+PG_CONFIG = @PG_CONFIG@
+PGXS := @PGXS@
+include $(PGXS)
