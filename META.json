@@ -1,23 +1,23 @@
 {
     "name": "pg_rest",
-    "abstract": "Rest api for PostgreSQL",
-    "description": "Rest api for PostgreSQL.",
-    "version": "0.1.0",
+    "abstract": "REST api for PostgreSQL",
+    "description": "REST api for PostgreSQL.",
+    "version": "0.1",
     "maintainer": "\"Robert Mu\" <dbx_c@hotmail.com>",
     "license": "lgpl_3_0",
     "prereqs": {
        "runtime": {
           "requires": {
-             "PostgreSQL": "9.4.0"
+             "PostgreSQL": "9.3.0"
           }
        }
     },
     "provides": {
         "pg_rest": {
-            "abstract": "Rest api for PostgreSQL",
+            "abstract": "REST api for PostgreSQL",
             "file": "sql/pg_rest--0.1.sql",
             "docfile": "README.md",
-            "version": "0.1.0"
+            "version": "0.1"
         }
     },
     "release_status": "stable",

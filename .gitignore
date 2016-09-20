@@ -60,3 +60,9 @@
 sql/*--*.sql
 
 /.deps/
+
+# Local excludes in root directory
+/GNUmakefile
+/config.cache
+/config.log
+/config.status

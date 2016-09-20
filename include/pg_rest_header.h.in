@@ -1,5 +1,5 @@
-#ifndef PG_REST_CONFIG_H
-#define PG_REST_CONFIG_H 1
+#ifndef PG_REST_HEADER_H
+#define PG_REST_HEADER_H 1
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
@@ -12,6 +12,9 @@
 
 /* Define to 1 if libjson is present */
 #undef HAVE_LIBJSON
+
+/* Define to 1 if openssl is present */
+#undef HAVE_OPENSSL
 
 /* Define to 1 if libxml2 is present */
 #undef HAVE_LIBXML
@@ -52,15 +55,36 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Define to 1 if you have tcp keepalive options. */
+#undef HAVE_KEEPALIVE_TUNABLE
+
+/* Define to 1 if you have socket SETFIB option. */
+#undef HAVE_SETFIB
+
+/* Define to 1 if you have socket REUSEPORT option. */
+#undef HAVE_REUSEPORT
+
+/* Define to 1 if you have socket ACCEPTFILTER option. */
+#undef HAVE_DEFERRED_ACCEPT
+
+/* Define to 1 if you have socket FASTOPEN option. */
+#undef HAVE_TCP_FASTOPEN
+
+/* Define to 1 if you have accept4. */
+#undef HAVE_ACCEPT4
+
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
 
-/* pgrest build date */
+/* pg_rest build date */
 #undef PGREST_BUILD_DATE
 
-/* pgrest library debug (0=disabled) */
+/* pg_rest library debug (0=disabled) */
 #undef PGREST_DEBUG
+
+/* pg_rest library malloc replacement (0=disabled) */
+#undef PGREST_MM_REPLACE
 
 /* pg_rest libxml2 version */
 #undef PGREST_LIBXML2_VERSION
@@ -79,4 +103,4 @@
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
-#endif /* PG_REST_CONFIG_H */
+#endif /* PG_REST_HEADER_H */

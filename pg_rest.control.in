@@ -1,0 +1,6 @@
+# pg_rest extension
+comment = 'REST api for PostgreSQL servers'
+default_version = '@PGREST_VERSION@'
+module_pathname = '$libdir/pg_rest'
+relocatable = true
+directory = 'contrib/pg_rest'

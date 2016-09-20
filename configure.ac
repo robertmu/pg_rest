@@ -10,12 +10,13 @@ dnl *
 dnl **********************************************************************
 
 AC_INIT()
-AC_CONFIG_HEADERS([pg_rest_config.h])
+AC_COPYRIGHT([Copyright (c) 2015-2016, Robert Mu])
+AC_CONFIG_HEADERS([include/pg_rest_header.h])
 AC_CONFIG_MACRO_DIR([macros])
 
 
 dnl Invoke libtool: we do this as it is the easiest way to find the PIC
-dnl flags required to build liblwgeom
+dnl flags required to build pg_rest
 AC_PROG_LIBTOOL
 
 dnl
@@ -43,7 +44,7 @@ dnl
 dnl Version Information imported from META.json 
 dnl
 PGREST_EXTENSION=`grep -m 1 '"name":' META.json | sed -e 's/[[[:space:]]]*"name":[[[:space:]]]*"\([[^"]]*\)",/\1/'`
-PGREST_VERSION=`grep default_version "$PGREST_EXTENSION.control" | sed -e "s/default_version[[[:space:]]]*=[[[:space:]]]*'\([[^']]*\)'/\1/"`
+PGREST_VERSION=`grep -m 1 '"version":' META.json | sed -e 's/[[[:space:]]]*"version":[[[:space:]]]*"\([[^"]]*\)",/\1/'`
 AC_DEFINE_UNQUOTED([PGREST_VERSION], ["$PGREST_VERSION"], [pg_rest version])
 AC_SUBST([PGREST_EXTENSION])
 AC_SUBST([PGREST_VERSION])
@@ -53,6 +54,15 @@ if test "x$PERL" = "x"; then
         AC_MSG_ERROR([Perl was not found. Building pg_rest requires Perl.])
 fi
 AC_SUBST([PERL])
+
+# OS X Lion started deprecating the system openssl. Let's just disable
+# all deprecation warnings on OS X.
+case "$host_os" in
+
+ darwin*)
+    CFLAGS="$CFLAGS -Wno-deprecated-declarations"
+    ;;
+esac
 
 dnl ===========================================================================
 dnl Detect libevent if it is installed 
@@ -82,20 +92,21 @@ AC_CHECK_HEADER([event.h], [HAVE_EVENT=yes], [])
 dnl If we find the header file, try and link against the library
 if test "x$HAVE_EVENT" = "xyes"; then
 	dnl libevent defines event_base_new, so we'll check that directly
-	AC_CHECK_LIB([event], [event_base_new], [EVENT_LDFLAGS="$EVENT_LDFLAGS -levent" HAVE_LIBEVENT=1], [])
+	AC_CHECK_LIB([event_core], [event_self_cbarg], [EVENT_LDFLAGS="$EVENT_LDFLAGS -levent_core" HAVE_LIBEVENT=1], [])
 	if test "x$HAVE_LIBEVENT" = "x"; then
         dnl No event library was found; issue a warning to the console
-		AC_MSG_ERROR([Could not find libevent. Please install libevent and libevent-devel.])
+		dnl AC_MSG_ERROR([Could not find libevent. Please install libevent and libevent-devel.])
+		AC_MSG_ERROR([library 'libevent' (version >= 2.1.1) is required. Please upgrade your libevent])
 	fi
 else
 	dnl No event header was found; issue a warning to the console
-	AC_MSG_ERROR([Could not find event.h header. Please install libevent and libevent-devel.])
+	AC_MSG_ERROR([Could not find event.h header. Please install libevent and libevent-devel (version >= 2.1.1 is required).])
 fi
 
 LDFLAGS="$LDFLAGS_SAVE"
 CFLAGS="$CFLAGS_SAVE"
 
-dnl Only define HAVE_LIBEVENT in pgrest_config.h if we detect event sucessfully
+dnl Only define HAVE_LIBEVENT in pg_rest_header.h if we detect event sucessfully
 if test "x$HAVE_LIBEVENT" != "x"; then
 	AC_DEFINE_UNQUOTED([HAVE_LIBEVENT], [$HAVE_LIBEVENT], [Defined if libevent headers and library are present])
 fi
@@ -264,13 +275,13 @@ dnl ===========================================================================
 HAVE_JSON=no
 
 AC_ARG_WITH([libjson-c],
-	[AS_HELP_STRING([--with-libjson-c=PATH], [specify the json-c installation directory])],
+	[AS_HELP_STRING([--with-json-c=PATH], [specify the json-c installation directory])],
 	[JSONDIR="$withval"], [JSONDIR=])
 
 if test ! "x$JSONDIR" = "x"; then
 	dnl Make sure that the directory exists
 	if test "x$JSONDIR" = "xyes"; then
-		AC_MSG_ERROR([you must specify a parameter to --with-jsondir, e.g. --with-jsondir=/path/to])
+		AC_MSG_ERROR([you must specify a parameter to --with-json-c, e.g. --with-json-c=/path/to])
 	else
 		AC_MSG_RESULT([Using user-specified json-c directory: $JSONDIR])
 
@@ -280,7 +291,7 @@ if test ! "x$JSONDIR" = "x"; then
 	fi
 fi
 
-dnl Check that we can find the json/json.h header file
+dnl Check that we can find the json-c/json.h header file
 CPPFLAGS_SAVE="$CPPFLAGS"
 CPPFLAGS="$JSON_CPPFLAGS"
 AC_CHECK_HEADER([json-c/json.h], [HAVE_JSON=yes], [])
@@ -291,7 +302,7 @@ fi
 
 CPPFLAGS="$CPPFLAGS_SAVE"
 
-dnl Ensure we can link against libjson
+dnl Ensure we can link against libjson-c
 HAVE_JSON=no
 LIBS_SAVE="$LIBS"
 LIBS="$JSON_LDFLAGS"
@@ -308,18 +319,218 @@ AC_SUBST([JSON_CPPFLAGS])
 AC_SUBST([JSON_LDFLAGS])
 AC_SUBST([HAVE_JSON])
 
+
+dnl ===========================================================================
+dnl Detect if openssl installed
+dnl ===========================================================================
+
+USE_OPENSSL=no
+AC_ARG_WITH([openssl], 
+    [AS_HELP_STRING([--with-openssl], [build with OpenSSL support(default=no)])], 
+    [WITH_LIBOPENSSL="$withval"], [WITH_LIBOPENSSL=""])
+
+if test ! "x$WITH_LIBOPENSSL" = "x"; then 
+    dnl Check headers file
+    AC_CHECK_HEADERS([openssl/bio.h],
+            [USE_OPENSSL=yes], [AC_MSG_ERROR([could not find headers include related to openssl])])
+
+    dnl Ensure we can link against openssl
+    LIBS_SAVE="$LIBS"
+    LIBS=""
+    AC_SEARCH_LIBS([SSL_new], [ssl],
+	    [USE_OPENSSL=yes
+	    OPENSSL_LDFLAGS="$LIBS -lcrypto -levent_openssl "
+	    AC_DEFINE(HAVE_OPENSSL, 1, [Define to 1 if OpenSSL is present])],
+	    [USE_OPENSSL=no],
+	    [-lcrypto ])
+    LIBS="$LIBS_SAVE"
+
+    AC_SUBST([USE_OPENSSL])
+    AC_SUBST([OPENSSL_LDFLAGS])
+fi
+
+
+dnl ===========================================================================
+dnl Types, structures, compiler characteristics
+dnl ===========================================================================
+
+AC_CACHE_CHECK(
+    [for tcp keepalive options],
+    [pgr_cv_keepalive_tunable],
+    [AC_LINK_IFELSE(
+	[AC_LANG_PROGRAM(
+	    [[
+        #include <stdio.h>
+		#include <sys/socket.h>
+		#include <netinet/in.h>
+		#include <netinet/tcp.h>
+	    ]],
+	    [[
+		setsockopt(0, IPPROTO_TCP, TCP_KEEPIDLE, NULL, 0);
+        setsockopt(0, IPPROTO_TCP, TCP_KEEPINTVL, NULL, 0);
+        setsockopt(0, IPPROTO_TCP, TCP_KEEPCNT, NULL, 0);
+	    ]]
+	)],
+	[pgr_cv_keepalive_tunable=yes],
+	[pgr_cv_keepalive_tunable=no]
+    )]
+)
+if test "$pgr_cv_keepalive_tunable" = "yes" ; then
+    AC_DEFINE([HAVE_KEEPALIVE_TUNABLE], [1], [Do we have tcp TCP_KEEPIDLE TCP_KEEPINTVL TCP_KEEPCNT options()?])
+fi
+
+AC_CACHE_CHECK(
+    [for socket setfib option],
+    [pgr_cv_setfib],
+    [AC_LINK_IFELSE(
+	[AC_LANG_PROGRAM(
+	    [[
+        #include <stdio.h>
+		#include <sys/socket.h>
+	    ]],
+	    [[
+        setsockopt(0, SOL_SOCKET, SO_SETFIB, NULL, 0);
+	    ]]
+	)],
+	[pgr_cv_setfib=yes],
+	[pgr_cv_setfib=no]
+    )]
+)
+if test "$pgr_cv_setfib" = "yes" ; then
+    AC_DEFINE([HAVE_SETFIB], [1], [Do we have socket SO_SETFIB option()?])
+fi
+
+AC_CACHE_CHECK(
+    [for socket reuseport option],
+    [pgr_cv_reuseport],
+    [AC_LINK_IFELSE(
+	[AC_LANG_PROGRAM(
+	    [[
+        #include <stdio.h>
+		#include <sys/socket.h>
+	    ]],
+	    [[
+        setsockopt(0, SOL_SOCKET, SO_REUSEPORT, NULL, 0);
+	    ]]
+	)],
+	[pgr_cv_reuseport=yes],
+	[pgr_cv_reuseport=no]
+    )]
+)
+if test "$pgr_cv_reuseport" = "yes" ; then
+    AC_DEFINE([HAVE_REUSEPORT], [1], [Do we have socket SO_REUSEPORT option()?])
+fi
+
+AC_CACHE_CHECK(
+    [for socket acceptfilter option],
+    [pgr_cv_acceptfilter],
+    [AC_LINK_IFELSE(
+	[AC_LANG_PROGRAM(
+	    [[
+        #include <stdio.h>
+		#include <sys/socket.h>
+	    ]],
+	    [[
+        setsockopt(0, SOL_SOCKET, SO_ACCEPTFILTER, NULL, 0);
+	    ]]
+	)],
+	[pgr_cv_acceptfilter=yes],
+	[pgr_cv_acceptfilter=no]
+    )]
+)
+if test "$pgr_cv_acceptfilter" = "yes" ; then
+    AC_DEFINE([HAVE_DEFERRED_ACCEPT], [1], [Do we have SO_ACCEPTFILTER option()?])
+fi
+
+AC_CACHE_CHECK(
+    [for tcp defer_accept option],
+    [pgr_cv_defer_accept],
+    [AC_LINK_IFELSE(
+	[AC_LANG_PROGRAM(
+	    [[
+        #include <stdio.h>
+		#include <sys/socket.h>
+		#include <netinet/in.h>
+		#include <netinet/tcp.h>
+	    ]],
+	    [[
+        setsockopt(0, IPPROTO_TCP, TCP_DEFER_ACCEPT, NULL, 0);
+	    ]]
+	)],
+	[pgr_cv_defer_accept=yes],
+	[pgr_cv_defer_accept=no]
+    )]
+)
+if test "$pgr_cv_defer_accept" = "yes" ; then
+    AC_DEFINE([HAVE_DEFERRED_ACCEPT], [1], [Do we have TCP_DEFER_ACCEPT option()?])
+fi
+
+AC_CACHE_CHECK(
+    [for tcp fastopen option],
+    [pgr_cv_fastopen],
+    [AC_LINK_IFELSE(
+	[AC_LANG_PROGRAM(
+	    [[
+        #include <stdio.h>
+		#include <sys/socket.h>
+		#include <netinet/in.h>
+		#include <netinet/tcp.h>
+	    ]],
+	    [[
+        setsockopt(0, IPPROTO_TCP, TCP_FASTOPEN, NULL, 0);
+	    ]]
+	)],
+	[pgr_cv_fastopen=yes],
+	[pgr_cv_fastopen=no]
+    )]
+)
+if test "$pgr_cv_fastopen" = "yes" ; then
+    AC_DEFINE([HAVE_TCP_FASTOPEN], [1], [Do we have TCP_FASTOPEN option()?])
+fi
+
+AC_CACHE_CHECK(
+    [for accept4],
+    [pgr_cv_accept4],
+    [AC_LINK_IFELSE(
+	[AC_LANG_PROGRAM(
+	    [[
+        #include <stdio.h>
+		#include <sys/socket.h>
+	    ]],
+	    [[
+        accept4(0, NULL, NULL, SOCK_NONBLOCK);
+	    ]]
+	)],
+	[pgr_cv_accept4=yes],
+	[pgr_cv_accept4=no]
+    )]
+)
+if test "$pgr_cv_accept4" = "yes" ; then
+    AC_DEFINE([HAVE_ACCEPT4], [1], [Do we have accept4()?])
+fi
+
+
 dnl ===========================================================================
 dnl Allow the user to enable debugging with --enable-debug
-dnl
+dnl ===========================================================================
 
 AC_ARG_ENABLE([debug], AC_HELP_STRING([--enable-debug], [Enable verbose debugging messages]), 
 	[PGREST_DEBUG=1], [PGREST_DEBUG=0]) 
 
-AC_DEFINE_UNQUOTED([PGREST_DEBUG], [$PGREST_DEBUG], [pgrest library debug (0=disabled)])
+AC_DEFINE_UNQUOTED([PGREST_DEBUG], [$PGREST_DEBUG], [pg_rest library debug (0=disabled)])
+
+dnl ===========================================================================
+dnl disable support for replacing the memory mgt
+dnl ===========================================================================
+
+AC_ARG_ENABLE([malloc-replacement], AC_HELP_STRING([--disable-malloc-replacement], [disable support for replacing the memory mgt functions]), 
+	[PGREST_MM_REPLACE=0], [PGREST_MM_REPLACE=1]) 
+
+AC_DEFINE_UNQUOTED([PGREST_MM_REPLACE], [$PGREST_MM_REPLACE], [pg_rest library malloc replacement (0=disabled)])
 
 dnl ===========================================================================
 dnl Allow the user to enable pg_rest profiling with --enable-profile
-dnl
+dnl ===========================================================================
 
 AC_ARG_ENABLE([profile], AC_HELP_STRING([--enable-profile], [Enable pg_rest profiling messages]), 
 	[PGREST_PROFILE=1], [PGREST_PROFILE=0]) 
@@ -328,7 +539,7 @@ AC_DEFINE_UNQUOTED([PGREST_PROFILE], [$PGREST_PROFILE], [Enable pg_rest profilin
 
 dnl ===========================================================================
 dnl enables generation of code coverage metrics with gcov --enable-coverage
-dnl
+dnl ===========================================================================
 
 AC_ARG_ENABLE([coverage], AC_HELP_STRING([--enable-coverage], [Enable build with coverage testing instrumentation]), 
 	[PGREST_COVERAGE=yes], [PGREST_COVERAGE=no]) 
@@ -338,20 +549,20 @@ AC_SUBST([PGREST_COVERAGE])
 
 dnl ===========================================================================
 dnl Define build date macros
-dnl
+dnl ===========================================================================
 
 PGREST_BUILD_DATE=`date -u "+%Y-%m-%d %H:%M:%S"`
-AC_DEFINE_UNQUOTED([PGREST_BUILD_DATE], ["$PGREST_BUILD_DATE"], [pgrest build date])
+AC_DEFINE_UNQUOTED([PGREST_BUILD_DATE], ["$PGREST_BUILD_DATE"], [pg_rest build date])
 AC_SUBST([PGREST_BUILD_DATE])
 
 dnl ===========================================================================
 dnl Other parameters 
-dnl
+dnl ===========================================================================
 
 CPPFLAGS="$PGSQL_CPPFLAGS $EVENT_CPPFLAGS $JSON_CPPFLAGS $XML2_CPPFLAGS $CPPFLAGS"
 dnl AC_MSG_RESULT([CPPFLAGS: $CPPFLAGS])
 
-SHLIB_LINK="$PGSQL_LDFLAGS $EVENT_LDFLAGS $JSON_LDFLAGS $XML2_LDFLAGS"
+SHLIB_LINK="$PGSQL_LDFLAGS $EVENT_LDFLAGS $JSON_LDFLAGS $XML2_LDFLAGS $OPENSSL_LDFLAGS"
 AC_SUBST([SHLIB_LINK])
 dnl AC_MSG_RESULT([SHLIB_LINK: $SHLIB_LINK])
 
@@ -359,7 +570,8 @@ dnl ===========================================================================
 dnl Output the relevant files
 dnl ===========================================================================
 
-AC_OUTPUT([Makefile])
+AC_OUTPUT([Makefile
+   pg_rest.control])
     
 AC_MSG_RESULT()
 AC_MSG_RESULT([  pg_rest is now configured for ${host}])
@@ -369,7 +581,7 @@ AC_MSG_RESULT([  C compiler:           ${CC} ${CFLAGS}])
 AC_MSG_RESULT([ -------------- Dependencies -------------- ])
 AC_MSG_RESULT([  PostgreSQL config:    ${PG_CONFIG}])
 AC_MSG_RESULT([  PostgreSQL version:   ${PGSQL_FULL_VERSION}])
-AC_MSG_RESULT([  libevent support:     ${HAVE_EVENT}])
+AC_MSG_RESULT([  OpenSSL support:      ${USE_OPENSSL}])
 AC_MSG_RESULT([  JSON-C support:       ${HAVE_JSON}])
 AC_MSG_RESULT([  Libxml2 support:      ${HAVE_XML}])
 if test "x$HAVE_XML" = "xyes"; then
@@ -379,4 +591,4 @@ fi
 AC_MSG_RESULT([  Debug support:        ${PGREST_DEBUG}])
 AC_MSG_RESULT([  Profiling support:    ${PGREST_PROFILE}])
 AC_MSG_RESULT([  Coverage testing:     ${PGREST_COVERAGE}])
-
+AC_MSG_RESULT([  Malloc replacement:   ${PGREST_MM_REPLACE}])
