@@ -11,7 +11,7 @@ dnl **********************************************************************
 
 AC_INIT()
 AC_COPYRIGHT([Copyright (c) 2015-2016, Robert Mu])
-AC_CONFIG_HEADERS([include/pg_rest_header.h])
+AC_CONFIG_HEADERS([include/pg_rest_header.h jansson-2.8/jansson_private_config.h])
 AC_CONFIG_MACRO_DIR([macros])
 
 
@@ -25,6 +25,7 @@ dnl
 AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_GREP
+AM_CONDITIONAL([GCC], [test x$GCC = xyes])
 
 dnl
 dnl Define PIC flags in PICFLAGS (note: this variable is set as part of libtool initialisation above)
@@ -269,55 +270,95 @@ fi
 
 
 dnl ===========================================================================
-dnl Detect if json-c installed
+dnl setup jansson compile options
 dnl ===========================================================================
 
-HAVE_JSON=no
+# Checks for header files.
+AC_CHECK_HEADERS([endian.h fcntl.h locale.h sched.h unistd.h sys/param.h sys/stat.h sys/time.h sys/types.h])
 
-AC_ARG_WITH([libjson-c],
-	[AS_HELP_STRING([--with-json-c=PATH], [specify the json-c installation directory])],
-	[JSONDIR="$withval"], [JSONDIR=])
+# Checks for typedefs, structures, and compiler characteristics.
+AC_TYPE_INT32_T
+AC_TYPE_UINT32_T
+AC_TYPE_UINT16_T
+AC_TYPE_UINT8_T
+AC_TYPE_LONG_LONG_INT
 
-if test ! "x$JSONDIR" = "x"; then
-	dnl Make sure that the directory exists
-	if test "x$JSONDIR" = "xyes"; then
-		AC_MSG_ERROR([you must specify a parameter to --with-json-c, e.g. --with-json-c=/path/to])
-	else
-		AC_MSG_RESULT([Using user-specified json-c directory: $JSONDIR])
+AC_C_INLINE
+case $ac_cv_c_inline in
+    yes) json_inline=inline;;
+    no) json_inline=;;
+    *) json_inline=$ac_cv_c_inline;;
+esac
+AC_SUBST([json_inline])
 
-		dnl Add the include directory to JSON_CPPFLAGS
-		JSON_CPPFLAGS="-I$JSONDIR/include"
-		JSON_LDFLAGS="-L$JSONDIR/lib"
-	fi
+# Checks for library functions.
+AC_CHECK_FUNCS([close getpid gettimeofday localeconv open read sched_yield strtoll])
+
+AC_MSG_CHECKING([for gcc __sync builtins])
+have_sync_builtins=no
+AC_TRY_LINK(
+  [], [unsigned long val; __sync_bool_compare_and_swap(&val, 0, 1);],
+  [have_sync_builtins=yes],
+)
+if test "x$have_sync_builtins" = "xyes"; then
+  AC_DEFINE([HAVE_SYNC_BUILTINS], [1],
+    [Define to 1 if gcc's __sync builtins are available])
+fi
+AC_MSG_RESULT([$have_sync_builtins])
+
+AC_MSG_CHECKING([for gcc __atomic builtins])
+have_atomic_builtins=no
+AC_TRY_LINK(
+  [], [char l; unsigned long v; __atomic_test_and_set(&l, __ATOMIC_RELAXED); __atomic_store_n(&v, 1, __ATOMIC_RELEASE); __atomic_load_n(&v, __ATOMIC_ACQUIRE);],
+  [have_atomic_builtins=yes],
+)
+if test "x$have_atomic_builtins" = "xyes"; then
+  AC_DEFINE([HAVE_ATOMIC_BUILTINS], [1],
+    [Define to 1 if gcc's __atomic builtins are available])
+fi
+AC_MSG_RESULT([$have_atomic_builtins])
+
+case "$ac_cv_type_long_long_int$ac_cv_func_strtoll" in
+     yesyes) json_have_long_long=1;;
+     *) json_have_long_long=0;;
+esac
+AC_SUBST([json_have_long_long])
+
+case "$ac_cv_header_locale_h$ac_cv_func_localeconv" in
+     yesyes) json_have_localeconv=1;;
+     *) json_have_localeconv=0;;
+esac
+AC_SUBST([json_have_localeconv])
+
+# Features
+AC_ARG_ENABLE([urandom],
+  [AS_HELP_STRING([--disable-urandom],
+    [Don't use /dev/urandom to seed the hash function])],
+  [use_urandom=$enableval], [use_urandom=yes])
+
+if test "x$use_urandom" = xyes; then
+AC_DEFINE([USE_URANDOM], [1],
+  [Define to 1 if /dev/urandom should be used for seeding the hash function])
 fi
 
-dnl Check that we can find the json-c/json.h header file
-CPPFLAGS_SAVE="$CPPFLAGS"
-CPPFLAGS="$JSON_CPPFLAGS"
-AC_CHECK_HEADER([json-c/json.h], [HAVE_JSON=yes], [])
+AC_DEFINE([USE_WINDOWS_CRYPTOAPI], [1],
+  [Define to 1 if CryptGenRandom should be used for seeding the hash function])
 
-if test "x$HAVE_JSON" = "xno"; then
-	AC_MSG_ERROR([Could not find json-c/json.h header. Please install libjson-c and libjson-c-devel.])
-fi
+initial_hashtable_order=3
+AC_DEFINE_UNQUOTED([INITIAL_HASHTABLE_ORDER], [$initial_hashtable_order],
+  [Number of buckets new object hashtables contain is 2 raised to this power. E.g. 3 -> 2^3 = 8.])
 
-CPPFLAGS="$CPPFLAGS_SAVE"
-
-dnl Ensure we can link against libjson-c
-HAVE_JSON=no
-LIBS_SAVE="$LIBS"
-LIBS="$JSON_LDFLAGS"
-AC_CHECK_LIB([json-c], [json_object_get], [HAVE_JSON=yes; JSON_LDFLAGS="${JSON_LDFLAGS} -ljson-c"])
-LIBS="$LIBS_SAVE"
-
-if test "x$HAVE_JSON" = "xyes"; then
-	AC_DEFINE([HAVE_LIBJSON], 1, [Define to 1 if libjson is present])
-else
-	AC_MSG_ERROR([Could not find json-c. Please install libjson-c and libjson-c-devel.])
-fi
-
-AC_SUBST([JSON_CPPFLAGS])
-AC_SUBST([JSON_LDFLAGS])
-AC_SUBST([HAVE_JSON])
+AC_CACHE_CHECK([for printf format archetype], prac_cv_printf_archetype,
+[ac_save_c_werror_flag=$ac_c_werror_flag
+ac_c_werror_flag=yes
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+[extern int
+prac_write(int ignore, const char *fmt,...)
+__attribute__((format(gnu_printf, 2, 3)));], [])],
+                  [prac_cv_printf_archetype=gnu_printf],
+                  [prac_cv_printf_archetype=printf])
+ac_c_werror_flag=$ac_save_c_werror_flag])
+AC_SUBST([prac_cv_printf_archetype])
 
 
 dnl ===========================================================================
@@ -535,6 +576,10 @@ dnl ===========================================================================
 AC_ARG_ENABLE([profile], AC_HELP_STRING([--enable-profile], [Enable pg_rest profiling messages]), 
 	[PGREST_PROFILE=1], [PGREST_PROFILE=0]) 
 
+if test $PGSQL_VERSION -eq 1; then
+    AC_MSG_ERROR([--enable-profile is supported only when using GCC])
+fi
+
 AC_DEFINE_UNQUOTED([PGREST_PROFILE], [$PGREST_PROFILE], [Enable pg_rest profiling (0=disabled)])
 
 dnl ===========================================================================
@@ -543,6 +588,12 @@ dnl ===========================================================================
 
 AC_ARG_ENABLE([coverage], AC_HELP_STRING([--enable-coverage], [Enable build with coverage testing instrumentation]), 
 	[PGREST_COVERAGE=yes], [PGREST_COVERAGE=no]) 
+
+if test "$PGREST_COVERAGE" = "yes"; then
+  if test ! "$GCC" = "yes"; then
+    AC_MSG_ERROR([--enable-coverage is supported only when using GCC])
+  fi
+fi
 
 AC_SUBST([PGREST_COVERAGE])
 
@@ -559,10 +610,10 @@ dnl ===========================================================================
 dnl Other parameters 
 dnl ===========================================================================
 
-CPPFLAGS="$PGSQL_CPPFLAGS $EVENT_CPPFLAGS $JSON_CPPFLAGS $XML2_CPPFLAGS $CPPFLAGS"
+CPPFLAGS="$PGSQL_CPPFLAGS $EVENT_CPPFLAGS $XML2_CPPFLAGS $CPPFLAGS"
 dnl AC_MSG_RESULT([CPPFLAGS: $CPPFLAGS])
 
-SHLIB_LINK="$PGSQL_LDFLAGS $EVENT_LDFLAGS $JSON_LDFLAGS $XML2_LDFLAGS $OPENSSL_LDFLAGS"
+SHLIB_LINK="$PGSQL_LDFLAGS $EVENT_LDFLAGS $XML2_LDFLAGS $OPENSSL_LDFLAGS"
 AC_SUBST([SHLIB_LINK])
 dnl AC_MSG_RESULT([SHLIB_LINK: $SHLIB_LINK])
 
@@ -571,6 +622,7 @@ dnl Output the relevant files
 dnl ===========================================================================
 
 AC_OUTPUT([Makefile
+   jansson-2.8/src/jansson_config.h
    pg_rest.control])
     
 AC_MSG_RESULT()
@@ -582,7 +634,6 @@ AC_MSG_RESULT([ -------------- Dependencies -------------- ])
 AC_MSG_RESULT([  PostgreSQL config:    ${PG_CONFIG}])
 AC_MSG_RESULT([  PostgreSQL version:   ${PGSQL_FULL_VERSION}])
 AC_MSG_RESULT([  OpenSSL support:      ${USE_OPENSSL}])
-AC_MSG_RESULT([  JSON-C support:       ${HAVE_JSON}])
 AC_MSG_RESULT([  Libxml2 support:      ${HAVE_XML}])
 if test "x$HAVE_XML" = "xyes"; then
     AC_MSG_RESULT([  Libxml2 config:       ${XML2CONFIG}])

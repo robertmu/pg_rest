@@ -15,21 +15,14 @@
 #include "pg_rest_config.h"
 #include "pg_rest_core.h"
 
-typedef struct {
-    pgrest_listener_hook_pt  init;
-    void                    *data;
-} pgrest_listener_hook_t;
-
-static List *pgrest_listener_hooks = NIL;
 static List *pgrest_listener_listeners = NIL;
 
-static pgrest_listener_t *
-pgrest_listener_create(void *sockaddr, socklen_t socklen,
-                        pgrest_conn_handler_pt conn_handler)
+pgrest_listener_t *
+pgrest_listener_create(void *sockaddr, socklen_t socklen)
 {
-    pgrest_listener_t *listener;
-    struct sockaddr   *sa;
-    char               text[MAXPGPATH] = {0};
+    pgrest_listener_t   *listener;
+    struct sockaddr     *sa;
+    char                 text[PGREST_SOCKADDR_STRLEN];
 
     listener = (pgrest_listener_t *) palloc0fast(sizeof(pgrest_listener_t));
 
@@ -39,152 +32,43 @@ pgrest_listener_create(void *sockaddr, socklen_t socklen,
     listener->sockaddr = sa;
     listener->socklen = socklen;
 
-    (void) pgrest_util_inet_ntop(sa, socklen, text, MAXPGPATH);
+    (void) pgrest_util_inet_ntop(sa, socklen, text, PGREST_SOCKADDR_STRLEN, true);
     listener->addr_text = pstrdup(text);
+
+    switch (listener->sockaddr->sa_family) {
+#ifdef HAVE_IPV6
+    case AF_INET6:
+        listener->addr_text_max_len = PGREST_INET6_ADDRSTRLEN;
+        break;
+#endif
+#if HAVE_UNIX_SOCKETS
+    case AF_UNIX:
+        listener->addr_text_max_len = PGREST_UNIX_ADDRSTRLEN;
+        break;
+#endif
+    case AF_INET:
+        listener->addr_text_max_len = PGREST_INET_ADDRSTRLEN;
+        break;
+    default:
+        listener->addr_text_max_len = PGREST_SOCKADDR_STRLEN;
+        break;
+    }
 
     listener->fd = (evutil_socket_t) -1;
     listener->type = SOCK_STREAM;
+    listener->backlog = DEFAUlT_PGREST_LISTEN_BACKLOG;
+    listener->rcvbuf = -1;
+    listener->sndbuf = -1;
 
-    listener->addr_ntop = 1;
-    listener->handler = conn_handler;
-
-    listener->backlog = pgrest_setting.listener_backlog;
-    listener->rcvbuf = pgrest_setting.listener_tcp_rcvbuf;
-    listener->sndbuf = pgrest_setting.listener_tcp_sndbuf;
-
-#ifdef HAVE_KEEPALIVE_TUNABLE
-    listener->keepidle = pgrest_setting.listener_tcp_keepidle;
-    listener->keepintvl = pgrest_setting.listener_tcp_keepintvl;
-    listener->keepcnt = pgrest_setting.listener_tcp_keepcnt;
-#endif
-
-#if defined(HAVE_IPV6) && defined(IPV6_V6ONLY)
-    listener->ipv6only = pgrest_setting.listener_ipv6only;
-#endif
-#if defined(HAVE_DEFERRED_ACCEPT) && defined(SO_ACCEPTFILTER)
-    listener->accept_filter = pstrdup(pgrest_setting.acceptor_accept_filter);
-    if (strlen(listener->accept_filter)) {
-        listener->add_deferred = 1;
-    }
-#endif
-#if defined(HAVE_DEFERRED_ACCEPT) && defined(TCP_DEFER_ACCEPT)
-    listener->deferred_accept = pgrest_setting.acceptor_deferred_accept;
-    if (listener->deferred_accept) {
-        listener->add_deferred = 1;
-    }
-#endif
 #ifdef HAVE_SETFIB
-    listener->setfib = pgrest_setting.acceptor_setfib;
+    listener->setfib = -1;
 #endif
 #ifdef HAVE_TCP_FASTOPEN
-    listener->fastopen = pgrest_setting.acceptor_fastopen;
+    listener->fastopen = -1;
 #endif
-#ifdef HAVE_REUSEPORT
-    listener->reuseport = pgrest_setting.acceptor_reuseport;
-#endif
-#ifdef HAVE_UNIX_SOCKETS
-    if (listener->sockaddr->sa_family == AF_UNIX) {
-        listener->reuseport = 0;
-    }
-#endif
-
-    listener->post_accept_timeout = pgrest_setting.acceptor_timeout;
-    listener->open = 1;
-
-    if (pg_strcasecmp(pgrest_setting.listener_tcp_keepalive, "on") == 0) {
-        listener->keepalive = 1;
-    } else if (pg_strcasecmp(pgrest_setting.listener_tcp_keepalive, "off") == 0) {
-        listener->keepalive = 2;
-    } else {
-        listener->keepalive = 0;
-    }
+    pgrest_listener_listeners = lappend(pgrest_listener_listeners, listener);
 
     return listener;
-}
-
-List * 
-pgrest_listener_add(int family, const char *host_name,
-                         unsigned short port_number, 
-                         const char *unix_socket_dir,
-                         pgrest_conn_handler_pt conn_handler)
-{
-    int                 result;
-    char                port_number_str[32];
-    char               *service;
-    struct addrinfo    *addrs = NULL;
-    struct addrinfo    *addr = NULL;
-    struct addrinfo     hint;
-#ifdef HAVE_UNIX_SOCKETS
-    char                unix_socket_path[MAXPGPATH];
-#endif
-    pgrest_listener_t  *listener;
-    List               *listeners = NIL; 
-
-    /* Initialize hint structure */
-    MemSet(&hint, 0, sizeof(hint));
-    hint.ai_family = family;
-    hint.ai_flags = AI_PASSIVE;
-    hint.ai_socktype = SOCK_STREAM;
-
-    switch (family) {
-#ifdef HAVE_UNIX_SOCKETS
-    case AF_UNIX:
-        /*
-         * Create unixSocketPath from portNumber and unixSocketDir
-         */
-        PGREST_UNIXSOCK_PATH(unix_socket_path, port_number, unix_socket_dir);
-        if (strlen(unix_socket_path) >= UNIXSOCK_PATH_BUFLEN) {
-            ereport(WARNING,
-                    (errmsg(PGREST_PACKAGE " " "unix-domain socket path \"%s\" "
-                            "is too long (maximum %d bytes)",
-                             unix_socket_path,
-                             (int) (UNIXSOCK_PATH_BUFLEN - 1))));
-			return listeners;
-		}
-
-		service = unix_socket_path;
-        break;
-#endif
-
-    default: /* AF_INET */
-		snprintf(port_number_str, sizeof(port_number_str), "%d", port_number);
-		service = port_number_str;
-    }
-
-    result = pg_getaddrinfo_all(host_name, service, &hint, &addrs);
-    if (result || !addrs) {
-        if (host_name) {
-            ereport(WARNING,
-                    (errmsg(PGREST_PACKAGE " " "could not translate host "
-                            "name \"%s\", service \"%s\" to address: %s",
-                            host_name, service, gai_strerror(result))));
-        } else {
-            ereport(WARNING,
-                    (errmsg(PGREST_PACKAGE " " "could not translate "
-                            "service \"%s\" to address: %s",
-                            service, gai_strerror(result))));
-        }
-
-        if (addrs) {
-            pg_freeaddrinfo_all(hint.ai_family, addrs);
-        }
-
-        return listeners;
-    }
-
-    for (addr = addrs; addr; addr = addr->ai_next) {
-        if (!IS_AF_UNIX(family) && IS_AF_UNIX(addr->ai_family)) {
-            continue;
-        }
-
-        listener = pgrest_listener_create(addr->ai_addr, addr->ai_addrlen,
-                                          conn_handler);
-
-        listeners = lappend(listeners, listener);
-    }
-
-    pg_freeaddrinfo_all(hint.ai_family, addrs);
-    return listeners;
 }
 
 static bool
@@ -277,7 +161,7 @@ pgrest_listener_open(List *listeners)
             return false;
         }
 
-#ifdef HAVE_UNIX_DOMAIN
+#ifdef HAVE_UNIX_SOCKETS
         if (listener->sockaddr->sa_family == AF_UNIX) {
             mode_t   mode;
             mode = (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
@@ -420,8 +304,8 @@ pgrest_listener_configure(List *listeners)
 
 #ifdef SO_ACCEPTFILTER
         if (listener->add_deferred) {
-            MemSet(&&af, 0, sizeof(accept_filter_arg));
-            StrNCpy(af.af_name, listener->accept_filter,16);
+            MemSet(&af, 0, sizeof(accept_filter_arg));
+            StrNCpy(af.af_name, listener->accept_filter, PGREST_AF_SIZE);
 
             if (setsockopt(listener->fd, SOL_SOCKET, SO_ACCEPTFILTER,
                            &af, sizeof(struct accept_filter_arg)) == -1) {
@@ -461,7 +345,7 @@ pgrest_listener_configure(List *listeners)
 }
 
 static void
-pgrest_listener_close(void)
+pgrest_listener_close(List *listeners)
 {
     ListCell            *cell;
     pgrest_listener_t   *listener;
@@ -472,7 +356,7 @@ pgrest_listener_close(void)
 
     debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "listener close")));
 
-    foreach(cell, pgrest_listener_listeners) {
+    foreach(cell, listeners) {
         listener = lfirst(cell);
         conn = listener->connection;
 
@@ -555,28 +439,16 @@ pgrest_listener_pause(bool all)
     return true;
 }
 
-void
-pgrest_listener_hook_add(pgrest_listener_hook_pt init, void *data) 
-{
-    pgrest_listener_hook_t  *hook;
-
-    hook = (pgrest_listener_hook_t *) palloc0fast(sizeof(pgrest_listener_hook_t));
-
-    hook->init = init;
-    hook->data = data;
-
-    pgrest_listener_hooks = lappend(pgrest_listener_hooks, hook);
-}
-
 static bool
 pgrest_listener_worker_init(void *data)
 {
     ListCell            *cell;
     pgrest_listener_t   *listener;
     pgrest_connection_t *conn;
+    List                *listeners = data;
 
     /* for each listening socket */
-    foreach(cell, pgrest_listener_listeners) {
+    foreach(cell, listeners) {
         listener = lfirst(cell);
 
         conn = pgrest_conn_get(listener->fd, false);
@@ -602,7 +474,8 @@ pgrest_listener_worker_init(void *data)
 
 #ifdef HAVE_REUSEPORT
         if (listener->reuseport) {
-            pgrest_event_priority_set(listener->ev, pgrest_acceptor_use_mutex ? 1 : 0);
+            pgrest_event_priority_set(listener->ev, 
+                                      pgrest_acceptor_use_mutex ? 1 : 0);
             if (!pgrest_event_add(listener->ev, EV_READ, 0)) {
                 return false;
             }
@@ -626,10 +499,12 @@ pgrest_listener_worker_init(void *data)
 static bool
 pgrest_listener_worker_exit(void *data)
 {
+    List       *listeners = data;
+
     debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d listener_exit",
                                pgrest_worker_index)));
 
-    pgrest_listener_close();
+    pgrest_listener_close(listeners);
     return true;
 }
 
@@ -723,16 +598,6 @@ pgrest_listener_fini1(int status, Datum arg)
 void
 pgrest_listener_init(void)
 {
-    ListCell         *cell;
-
-    foreach(cell, pgrest_listener_hooks) {
-        pgrest_listener_hook_t *hook = lfirst(cell);
-        if (hook->init) {
-            pgrest_listener_listeners = list_concat(pgrest_listener_listeners, 
-                                                    hook->init(hook->data));
-        }
-    }
-
     if (pgrest_listener_listeners == NIL) {
         ereport(FATAL,
                 (errmsg(PGREST_PACKAGE " " "could not create any listener")));
@@ -745,7 +610,11 @@ pgrest_listener_init(void)
 
     pgrest_listener_configure(pgrest_listener_listeners);
 
-    pgrest_worker_hook_add(pgrest_listener_worker_init, pgrest_listener_worker_exit, "listener", NULL, false);
+    pgrest_worker_hook_add(pgrest_listener_worker_init, 
+                           pgrest_listener_worker_exit, 
+                           "listener", 
+                           pgrest_listener_listeners, 
+                           false);
 
     on_proc_exit(pgrest_listener_fini1, 0);
 #if PGREST_DEBUG
@@ -757,5 +626,5 @@ void
 pgrest_listener_fini(void)
 {
     debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "listener fini")));
-    pgrest_listener_close();
+    pgrest_listener_close(pgrest_listener_listeners);
 }

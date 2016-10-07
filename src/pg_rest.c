@@ -44,9 +44,9 @@ _PG_init(void)
     MemoryContext master_context;
     MemoryContext old_context;
 
-    debug_log(DEBUG1,(errmsg(PGREST_PACKAGE " " "_PG_init")));
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "_PG_init")));
 
-    /* should be enough to hold listener,shm,ipc channel list */
+    /* hold listener,shm,ipc channel list */
     master_context = AllocSetContextCreate(TopMemoryContext,
                                            PGREST_PACKAGE " " "master",
                                            ALLOCSET_SMALL_SIZES);
@@ -62,7 +62,7 @@ _PG_init(void)
     pgrest_conn_init(pgrest_setting.worker_noconn);
 
     /* initialize http */
-    pgrest_http_init();
+    pgrest_http_init(&pgrest_setting);
 
     /* initialize listener */
     pgrest_listener_init();
@@ -88,7 +88,7 @@ _PG_init(void)
 void
 _PG_fini(void)
 {
-    debug_log(DEBUG1,(errmsg(PGREST_PACKAGE " " "_PG_fini")));
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "_PG_fini")));
 
     pgrest_listener_fini();
     pgrest_shm_fini();

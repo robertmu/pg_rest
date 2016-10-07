@@ -207,7 +207,6 @@ pgrest_shm_info_format(List *shm_segments)
 
     result = makeStringInfo();
 
-    /* for each listening socket */
     foreach(cell, shm_segments) {
         seg = lfirst(cell);
 

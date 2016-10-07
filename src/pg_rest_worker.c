@@ -19,7 +19,7 @@ typedef struct {
 #if PGSQL_VERSION >= 95
     pg_atomic_uint32    connections;
 #else
-    slock_t		        stat_mutex;
+    slock_t             stat_mutex;
     uint32              connections;
 #endif
 } pgrest_worker_stat_t;
@@ -62,7 +62,7 @@ static void pgrest_worker_main(Datum);
 static void
 pgrest_worker_signal_handler(evutil_socket_t fd, short events, void *arg)
 {
-	struct event *signal = arg;
+    struct event *signal = arg;
     int           sigval = pgrest_event_get_signal(signal);
 
     debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d received signal %d ",
@@ -284,7 +284,7 @@ pgrest_worker_process_exit(struct event_base *event_base)
     foreach(cell, pgrest_worker_hooks) {
         pgrest_worker_hook_t *hook = lfirst(cell);
         if (hook->shutdown) {
-            (void)hook->shutdown(NULL);
+            (void)hook->shutdown(hook->data);
         }
     }
 

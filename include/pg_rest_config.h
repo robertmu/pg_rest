@@ -23,5 +23,6 @@ typedef uintptr_t                            pgrest_uint_t;
 typedef intptr_t                             pgrest_int_t;
 
 #define PGREST_PACKAGE                       "pg_rest"
+#define PGREST_AF_SIZE                       16
 
 #endif /* PG_REST_CONFIG_H_ */

@@ -125,7 +125,6 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
     pgrest_connection_t *conn;
     pgrest_connection_t *lconn;
     SockAddr             sockaddr;
-    char                 text[MAXPGPATH] = {0};
     int                  available;
 #ifdef HAVE_ACCEPT4
     static int           use_accept4 = 1;
@@ -242,8 +241,12 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
         }
 #endif
         if (listener->addr_ntop) {
-            (void) pgrest_util_inet_ntop(conn->sockaddr,conn->socklen, text, MAXPGPATH);
-            conn->addr_text = pstrdup(text);
+            conn->addr_text = palloc(listener->addr_text_max_len);
+            (void) pgrest_util_inet_ntop(conn->sockaddr, 
+                                         conn->socklen, 
+                                         conn->addr_text, 
+                                         listener->addr_text_max_len,
+                                         false);
         }
 
         listener->handler(conn);

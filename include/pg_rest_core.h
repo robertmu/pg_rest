@@ -38,11 +38,11 @@ typedef void   (*pgrest_conn_handler_pt)  (pgrest_connection_t *conn);
 #include <utils/guc_tables.h>
 
 #if PGSQL_VERSION >= 95
-#include "port/atomics.h"
+#include <port/atomics.h>
 #endif
 
 #include <limits.h>
-
+#include <sys/stat.h>
 #include <unistd.h>
 #ifdef HAVE_NETINET_TCP_H
 #include <netinet/tcp.h>
@@ -58,10 +58,14 @@ typedef void   (*pgrest_conn_handler_pt)  (pgrest_connection_t *conn);
 #include <event2/bufferevent_ssl.h>
 #endif
 
+#include <jansson.h>
+
 #include "pg_rest_util.h"
 #include "pg_rest_slock.h"
+#include "pg_rest_array.h"
 #include "pg_rest_cqueue.h"
 #include "pg_rest_guc.h"
+#include "pg_rest_conf.h"
 #include "pg_rest_slab.h"
 #include "pg_rest_ipc.h"
 #include "pg_rest_shm.h"

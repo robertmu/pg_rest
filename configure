@@ -637,9 +637,10 @@ PGREST_BUILD_DATE
 PGREST_COVERAGE
 OPENSSL_LDFLAGS
 USE_OPENSSL
-HAVE_JSON
-JSON_LDFLAGS
-JSON_CPPFLAGS
+prac_cv_printf_archetype
+json_have_localeconv
+json_have_long_long
+json_inline
 HAVE_XML
 PGREST_LIBXML2_VERSION
 XML2CONFIG
@@ -659,6 +660,8 @@ PGREST_VERSION
 PGREST_EXTENSION
 WARNFLAGS
 PICFLAGS
+GCC_FALSE
+GCC_TRUE
 CPP
 OTOOL64
 OTOOL
@@ -749,7 +752,7 @@ enable_libtool_lock
 with_libevent
 with_pgconfig
 with_libxml
-with_libjson_c
+enable_urandom
 with_openssl
 enable_debug
 enable_malloc_replacement
@@ -1382,6 +1385,7 @@ Optional Features:
   --enable-fast-install[=PKGS]
                           optimize for fast installation [default=yes]
   --disable-libtool-lock  avoid locking (might break parallel builds)
+  --disable-urandom       Don't use /dev/urandom to seed the hash function
   --enable-debug          Enable verbose debugging messages
   --disable-malloc-replacement
                           disable support for replacing the memory mgt
@@ -1400,7 +1404,6 @@ Optional Packages:
   --with-libevent=PATH    specify a path to non-default libevent installation
   --with-pgconfig=FILE    specify an alternative pg_config file
   --with-libxml           build with XML support(default=no)
-  --with-json-c=PATH      specify the json-c installation directory
   --with-openssl          build with OpenSSL support(default=no)
 
 Some influential environment variables:
@@ -1844,6 +1847,136 @@ fi
   eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
 
 } # ac_fn_c_check_header_mongrel
+
+# ac_fn_c_find_intX_t LINENO BITS VAR
+# -----------------------------------
+# Finds a signed integer type with width BITS, setting cache variable VAR
+# accordingly.
+ac_fn_c_find_intX_t ()
+{
+  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for int$2_t" >&5
+$as_echo_n "checking for int$2_t... " >&6; }
+if eval \${$3+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  eval "$3=no"
+     # Order is important - never check a type that is potentially smaller
+     # than half of the expected target width.
+     for ac_type in int$2_t 'int' 'long int' \
+	 'long long int' 'short int' 'signed char'; do
+       cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$ac_includes_default
+	     enum { N = $2 / 2 - 1 };
+int
+main ()
+{
+static int test_array [1 - 2 * !(0 < ($ac_type) ((((($ac_type) 1 << N) << N) - 1) * 2 + 1))];
+test_array [0] = 0;
+return test_array [0];
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$ac_includes_default
+	        enum { N = $2 / 2 - 1 };
+int
+main ()
+{
+static int test_array [1 - 2 * !(($ac_type) ((((($ac_type) 1 << N) << N) - 1) * 2 + 1)
+		 < ($ac_type) ((((($ac_type) 1 << N) << N) - 1) * 2 + 2))];
+test_array [0] = 0;
+return test_array [0];
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+
+else
+  case $ac_type in #(
+  int$2_t) :
+    eval "$3=yes" ;; #(
+  *) :
+    eval "$3=\$ac_type" ;;
+esac
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+       if eval test \"x\$"$3"\" = x"no"; then :
+
+else
+  break
+fi
+     done
+fi
+eval ac_res=\$$3
+	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+
+} # ac_fn_c_find_intX_t
+
+# ac_fn_c_find_uintX_t LINENO BITS VAR
+# ------------------------------------
+# Finds an unsigned integer type with width BITS, setting cache variable VAR
+# accordingly.
+ac_fn_c_find_uintX_t ()
+{
+  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for uint$2_t" >&5
+$as_echo_n "checking for uint$2_t... " >&6; }
+if eval \${$3+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  eval "$3=no"
+     # Order is important - never check a type that is potentially smaller
+     # than half of the expected target width.
+     for ac_type in uint$2_t 'unsigned int' 'unsigned long int' \
+	 'unsigned long long int' 'unsigned short int' 'unsigned char'; do
+       cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !((($ac_type) -1 >> ($2 / 2 - 1)) >> ($2 / 2 - 1) == 3)];
+test_array [0] = 0;
+return test_array [0];
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  case $ac_type in #(
+  uint$2_t) :
+    eval "$3=yes" ;; #(
+  *) :
+    eval "$3=\$ac_type" ;;
+esac
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+       if eval test \"x\$"$3"\" = x"no"; then :
+
+else
+  break
+fi
+     done
+fi
+eval ac_res=\$$3
+	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+
+} # ac_fn_c_find_uintX_t
 cat >config.log <<_ACEOF
 This file contains any messages produced by compilers while
 running configure, to aid debugging if configure makes a mistake.
@@ -2197,7 +2330,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
-ac_config_headers="$ac_config_headers include/pg_rest_header.h"
+ac_config_headers="$ac_config_headers include/pg_rest_header.h jansson-2.8/jansson_private_config.h"
 
 
 
@@ -11399,6 +11532,14 @@ $as_echo "$ac_cv_path_GREP" >&6; }
  GREP="$ac_cv_path_GREP"
 
 
+ if test x$GCC = xyes; then
+  GCC_TRUE=
+  GCC_FALSE='#'
+else
+  GCC_TRUE='#'
+  GCC_FALSE=
+fi
+
 
 PICFLAGS="$lt_prog_compiler_pic"
 
@@ -11939,99 +12080,376 @@ fi
 
 
 
-HAVE_JSON=no
+# Checks for header files.
+for ac_header in endian.h fcntl.h locale.h sched.h unistd.h sys/param.h sys/stat.h sys/time.h sys/types.h
+do :
+  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
 
-
-# Check whether --with-libjson-c was given.
-if test "${with_libjson_c+set}" = set; then :
-  withval=$with_libjson_c; JSONDIR="$withval"
-else
-  JSONDIR=
 fi
 
-
-if test ! "x$JSONDIR" = "x"; then
-		if test "x$JSONDIR" = "xyes"; then
-		as_fn_error $? "you must specify a parameter to --with-json-c, e.g. --with-json-c=/path/to" "$LINENO" 5
-	else
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Using user-specified json-c directory: $JSONDIR" >&5
-$as_echo "Using user-specified json-c directory: $JSONDIR" >&6; }
-
-				JSON_CPPFLAGS="-I$JSONDIR/include"
-		JSON_LDFLAGS="-L$JSONDIR/lib"
-	fi
-fi
-
-CPPFLAGS_SAVE="$CPPFLAGS"
-CPPFLAGS="$JSON_CPPFLAGS"
-ac_fn_c_check_header_mongrel "$LINENO" "json-c/json.h" "ac_cv_header_json_c_json_h" "$ac_includes_default"
-if test "x$ac_cv_header_json_c_json_h" = xyes; then :
-  HAVE_JSON=yes
-fi
+done
 
 
+# Checks for typedefs, structures, and compiler characteristics.
+ac_fn_c_find_intX_t "$LINENO" "32" "ac_cv_c_int32_t"
+case $ac_cv_c_int32_t in #(
+  no|yes) ;; #(
+  *)
 
-if test "x$HAVE_JSON" = "xno"; then
-	as_fn_error $? "Could not find json-c/json.h header. Please install libjson-c and libjson-c-devel." "$LINENO" 5
-fi
+cat >>confdefs.h <<_ACEOF
+#define int32_t $ac_cv_c_int32_t
+_ACEOF
+;;
+esac
 
-CPPFLAGS="$CPPFLAGS_SAVE"
+ac_fn_c_find_uintX_t "$LINENO" "32" "ac_cv_c_uint32_t"
+case $ac_cv_c_uint32_t in #(
+  no|yes) ;; #(
+  *)
 
-HAVE_JSON=no
-LIBS_SAVE="$LIBS"
-LIBS="$JSON_LDFLAGS"
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for json_object_get in -ljson-c" >&5
-$as_echo_n "checking for json_object_get in -ljson-c... " >&6; }
-if ${ac_cv_lib_json_c_json_object_get+:} false; then :
+$as_echo "#define _UINT32_T 1" >>confdefs.h
+
+
+cat >>confdefs.h <<_ACEOF
+#define uint32_t $ac_cv_c_uint32_t
+_ACEOF
+;;
+  esac
+
+ac_fn_c_find_uintX_t "$LINENO" "16" "ac_cv_c_uint16_t"
+case $ac_cv_c_uint16_t in #(
+  no|yes) ;; #(
+  *)
+
+
+cat >>confdefs.h <<_ACEOF
+#define uint16_t $ac_cv_c_uint16_t
+_ACEOF
+;;
+  esac
+
+ac_fn_c_find_uintX_t "$LINENO" "8" "ac_cv_c_uint8_t"
+case $ac_cv_c_uint8_t in #(
+  no|yes) ;; #(
+  *)
+
+$as_echo "#define _UINT8_T 1" >>confdefs.h
+
+
+cat >>confdefs.h <<_ACEOF
+#define uint8_t $ac_cv_c_uint8_t
+_ACEOF
+;;
+  esac
+
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for unsigned long long int" >&5
+$as_echo_n "checking for unsigned long long int... " >&6; }
+if ${ac_cv_type_unsigned_long_long_int+:} false; then :
   $as_echo_n "(cached) " >&6
 else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-ljson-c  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+  ac_cv_type_unsigned_long_long_int=yes
+     if test "x${ac_cv_prog_cc_c99-no}" = xno; then
+       cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char json_object_get ();
+  /* For now, do not test the preprocessor; as of 2007 there are too many
+         implementations with broken preprocessors.  Perhaps this can
+         be revisited in 2012.  In the meantime, code should not expect
+         #if to work with literals wider than 32 bits.  */
+      /* Test literals.  */
+      long long int ll = 9223372036854775807ll;
+      long long int nll = -9223372036854775807LL;
+      unsigned long long int ull = 18446744073709551615ULL;
+      /* Test constant expressions.   */
+      typedef int a[((-9223372036854775807LL < 0 && 0 < 9223372036854775807ll)
+                     ? 1 : -1)];
+      typedef int b[(18446744073709551615ULL <= (unsigned long long int) -1
+                     ? 1 : -1)];
+      int i = 63;
 int
 main ()
 {
-return json_object_get ();
+/* Test availability of runtime routines for shift and division.  */
+      long long int llmax = 9223372036854775807ll;
+      unsigned long long int ullmax = 18446744073709551615ull;
+      return ((ll << 63) | (ll >> 63) | (ll < i) | (ll > i)
+              | (llmax / ll) | (llmax % ll)
+              | (ull << 63) | (ull >> 63) | (ull << i) | (ull >> i)
+              | (ullmax / ull) | (ullmax % ull));
+  ;
+  return 0;
+}
+
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+
+else
+  ac_cv_type_unsigned_long_long_int=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+     fi
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_type_unsigned_long_long_int" >&5
+$as_echo "$ac_cv_type_unsigned_long_long_int" >&6; }
+  if test $ac_cv_type_unsigned_long_long_int = yes; then
+
+$as_echo "#define HAVE_UNSIGNED_LONG_LONG_INT 1" >>confdefs.h
+
+  fi
+
+
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for long long int" >&5
+$as_echo_n "checking for long long int... " >&6; }
+if ${ac_cv_type_long_long_int+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_cv_type_long_long_int=yes
+      if test "x${ac_cv_prog_cc_c99-no}" = xno; then
+        ac_cv_type_long_long_int=$ac_cv_type_unsigned_long_long_int
+        if test $ac_cv_type_long_long_int = yes; then
+                                        if test "$cross_compiling" = yes; then :
+  :
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <limits.h>
+                 #ifndef LLONG_MAX
+                 # define HALF \
+                          (1LL << (sizeof (long long int) * CHAR_BIT - 2))
+                 # define LLONG_MAX (HALF - 1 + HALF)
+                 #endif
+int
+main ()
+{
+long long int n = 1;
+                 int i;
+                 for (i = 0; ; i++)
+                   {
+                     long long int m = n << i;
+                     if (m >> i != n)
+                       return 1;
+                     if (LLONG_MAX / 2 < m)
+                       break;
+                   }
+                 return 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+
+else
+  ac_cv_type_long_long_int=no
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+        fi
+      fi
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_type_long_long_int" >&5
+$as_echo "$ac_cv_type_long_long_int" >&6; }
+  if test $ac_cv_type_long_long_int = yes; then
+
+$as_echo "#define HAVE_LONG_LONG_INT 1" >>confdefs.h
+
+  fi
+
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for inline" >&5
+$as_echo_n "checking for inline... " >&6; }
+if ${ac_cv_c_inline+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_cv_c_inline=no
+for ac_kw in inline __inline__ __inline; do
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#ifndef __cplusplus
+typedef int foo_t;
+static $ac_kw foo_t static_foo () {return 0; }
+$ac_kw foo_t foo () {return 0; }
+#endif
+
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ac_cv_c_inline=$ac_kw
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  test "$ac_cv_c_inline" != no && break
+done
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_c_inline" >&5
+$as_echo "$ac_cv_c_inline" >&6; }
+
+case $ac_cv_c_inline in
+  inline | yes) ;;
+  *)
+    case $ac_cv_c_inline in
+      no) ac_val=;;
+      *) ac_val=$ac_cv_c_inline;;
+    esac
+    cat >>confdefs.h <<_ACEOF
+#ifndef __cplusplus
+#define inline $ac_val
+#endif
+_ACEOF
+    ;;
+esac
+
+case $ac_cv_c_inline in
+    yes) json_inline=inline;;
+    no) json_inline=;;
+    *) json_inline=$ac_cv_c_inline;;
+esac
+
+
+# Checks for library functions.
+for ac_func in close getpid gettimeofday localeconv open read sched_yield strtoll
+do :
+  as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
+ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+if eval test \"x\$"$as_ac_var"\" = x"yes"; then :
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_func" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+done
+
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for gcc __sync builtins" >&5
+$as_echo_n "checking for gcc __sync builtins... " >&6; }
+have_sync_builtins=no
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+unsigned long val; __sync_bool_compare_and_swap(&val, 0, 1);
   ;
   return 0;
 }
 _ACEOF
 if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_json_c_json_object_get=yes
-else
-  ac_cv_lib_json_c_json_object_get=no
+  have_sync_builtins=yes
 fi
 rm -f core conftest.err conftest.$ac_objext \
     conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
+if test "x$have_sync_builtins" = "xyes"; then
+
+$as_echo "#define HAVE_SYNC_BUILTINS 1" >>confdefs.h
+
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_json_c_json_object_get" >&5
-$as_echo "$ac_cv_lib_json_c_json_object_get" >&6; }
-if test "x$ac_cv_lib_json_c_json_object_get" = xyes; then :
-  HAVE_JSON=yes; JSON_LDFLAGS="${JSON_LDFLAGS} -ljson-c"
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_sync_builtins" >&5
+$as_echo "$have_sync_builtins" >&6; }
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for gcc __atomic builtins" >&5
+$as_echo_n "checking for gcc __atomic builtins... " >&6; }
+have_atomic_builtins=no
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+char l; unsigned long v; __atomic_test_and_set(&l, __ATOMIC_RELAXED); __atomic_store_n(&v, 1, __ATOMIC_RELEASE); __atomic_load_n(&v, __ATOMIC_ACQUIRE);
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  have_atomic_builtins=yes
 fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+if test "x$have_atomic_builtins" = "xyes"; then
 
-LIBS="$LIBS_SAVE"
+$as_echo "#define HAVE_ATOMIC_BUILTINS 1" >>confdefs.h
 
-if test "x$HAVE_JSON" = "xyes"; then
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $have_atomic_builtins" >&5
+$as_echo "$have_atomic_builtins" >&6; }
 
-$as_echo "#define HAVE_LIBJSON 1" >>confdefs.h
+case "$ac_cv_type_long_long_int$ac_cv_func_strtoll" in
+     yesyes) json_have_long_long=1;;
+     *) json_have_long_long=0;;
+esac
 
+
+case "$ac_cv_header_locale_h$ac_cv_func_localeconv" in
+     yesyes) json_have_localeconv=1;;
+     *) json_have_localeconv=0;;
+esac
+
+
+# Features
+# Check whether --enable-urandom was given.
+if test "${enable_urandom+set}" = set; then :
+  enableval=$enable_urandom; use_urandom=$enableval
 else
-	as_fn_error $? "Could not find json-c. Please install libjson-c and libjson-c-devel." "$LINENO" 5
+  use_urandom=yes
 fi
 
 
+if test "x$use_urandom" = xyes; then
 
+$as_echo "#define USE_URANDOM 1" >>confdefs.h
+
+fi
+
+
+$as_echo "#define USE_WINDOWS_CRYPTOAPI 1" >>confdefs.h
+
+
+initial_hashtable_order=3
+
+cat >>confdefs.h <<_ACEOF
+#define INITIAL_HASHTABLE_ORDER $initial_hashtable_order
+_ACEOF
+
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for printf format archetype" >&5
+$as_echo_n "checking for printf format archetype... " >&6; }
+if ${prac_cv_printf_archetype+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_save_c_werror_flag=$ac_c_werror_flag
+ac_c_werror_flag=yes
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+extern int
+prac_write(int ignore, const char *fmt,...)
+__attribute__((format(gnu_printf, 2, 3)));
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  prac_cv_printf_archetype=gnu_printf
+else
+  prac_cv_printf_archetype=printf
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ac_c_werror_flag=$ac_save_c_werror_flag
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $prac_cv_printf_archetype" >&5
+$as_echo "$prac_cv_printf_archetype" >&6; }
 
 
 
@@ -12462,6 +12880,10 @@ else
 fi
 
 
+if test $PGSQL_VERSION -eq 1; then
+    as_fn_error $? "--enable-profile is supported only when using GCC" "$LINENO" 5
+fi
+
 
 cat >>confdefs.h <<_ACEOF
 #define PGREST_PROFILE $PGREST_PROFILE
@@ -12477,6 +12899,12 @@ else
 fi
 
 
+if test "$PGREST_COVERAGE" = "yes"; then
+  if test ! "$GCC" = "yes"; then
+    as_fn_error $? "--enable-coverage is supported only when using GCC" "$LINENO" 5
+  fi
+fi
+
 
 
 
@@ -12490,13 +12918,13 @@ _ACEOF
 
 
 
-CPPFLAGS="$PGSQL_CPPFLAGS $EVENT_CPPFLAGS $JSON_CPPFLAGS $XML2_CPPFLAGS $CPPFLAGS"
+CPPFLAGS="$PGSQL_CPPFLAGS $EVENT_CPPFLAGS $XML2_CPPFLAGS $CPPFLAGS"
 
-SHLIB_LINK="$PGSQL_LDFLAGS $EVENT_LDFLAGS $JSON_LDFLAGS $XML2_LDFLAGS $OPENSSL_LDFLAGS"
+SHLIB_LINK="$PGSQL_LDFLAGS $EVENT_LDFLAGS $XML2_LDFLAGS $OPENSSL_LDFLAGS"
 
 
 
-ac_config_files="$ac_config_files Makefile pg_rest.control"
+ac_config_files="$ac_config_files Makefile jansson-2.8/src/jansson_config.h pg_rest.control"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -12607,6 +13035,10 @@ LIBOBJS=$ac_libobjs
 LTLIBOBJS=$ac_ltlibobjs
 
 
+if test -z "${GCC_TRUE}" && test -z "${GCC_FALSE}"; then
+  as_fn_error $? "conditional \"GCC\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
 
 : "${CONFIG_STATUS=./config.status}"
 ac_write_fail=0
@@ -13474,8 +13906,10 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "include/pg_rest_header.h") CONFIG_HEADERS="$CONFIG_HEADERS include/pg_rest_header.h" ;;
+    "jansson-2.8/jansson_private_config.h") CONFIG_HEADERS="$CONFIG_HEADERS jansson-2.8/jansson_private_config.h" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+    "jansson-2.8/src/jansson_config.h") CONFIG_FILES="$CONFIG_FILES jansson-2.8/src/jansson_config.h" ;;
     "pg_rest.control") CONFIG_FILES="$CONFIG_FILES pg_rest.control" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
@@ -14714,8 +15148,6 @@ $as_echo "  PostgreSQL config:    ${PG_CONFIG}" >&6; }
 $as_echo "  PostgreSQL version:   ${PGSQL_FULL_VERSION}" >&6; }
 { $as_echo "$as_me:${as_lineno-$LINENO}: result:   OpenSSL support:      ${USE_OPENSSL}" >&5
 $as_echo "  OpenSSL support:      ${USE_OPENSSL}" >&6; }
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result:   JSON-C support:       ${HAVE_JSON}" >&5
-$as_echo "  JSON-C support:       ${HAVE_JSON}" >&6; }
 { $as_echo "$as_me:${as_lineno-$LINENO}: result:   Libxml2 support:      ${HAVE_XML}" >&5
 $as_echo "  Libxml2 support:      ${HAVE_XML}" >&6; }
 if test "x$HAVE_XML" = "xyes"; then

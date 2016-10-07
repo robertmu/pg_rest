@@ -1,0 +1,139 @@
+{
+    "worker": {
+        "worker_processes": 4,
+        "worker_priority": 0,
+        "worker_nofile": 1024,
+        "worker_connections": 1024
+    },
+
+    "accept": {
+        "accept_mutex": true,
+        "accept_mutex_delay": 500,
+        "multi_accept": false
+    },
+
+    "http": {
+        "tcp_nopush": true,
+        "keepalive_timeout": 50000,
+
+        "server": [
+            {
+                "listen": {
+                    "address": "127.0.0.1:8080",
+                    "default_server": true,
+                    "bind": false,
+                    "backlog": 512,
+                    "sndbuf": -1,
+                    "rcvbuf": -1,
+                    "so_keepalive": "on",
+                    "tcp_keepidle": 0,
+                    "tcp_keepintvl": 0,
+                    "tcp_keepcnt": 0,
+                    "ipv6_only": true,
+                    "accept_filter": "httpready",
+                    "deferred_accept": false,
+                    "setfib": -1,
+                    "fastopen": -1,
+                    "reuseport": true,
+                    "ssl": false,
+                    "http2": false
+                },
+
+                "server_name": "plainserver,asdlkfjaskdfj",
+                "crud_prefix_url": "/crud/",
+                "doc_prefix_url": "/doc/",
+                "sql_prefix_url": "/sql/",
+                "client_header_timeout": 60000
+            },
+
+            {
+                "listen": {
+                    "address": "127.0.0.1:4443",
+                    "backlog": 512,
+                    "sndbuf": -1,
+                    "rcvbuf": -1,
+                    "so_keepalive": "off",
+                    "tcp_keepidle": 0,
+                    "tcp_keepintvl": 0,
+                    "tcp_keepcnt": 0,
+                    "ipv6_only": true,
+                    "accept_filter": "httpready",
+                    "deferred_accept": false,
+                    "setfib": -1,
+                    "fastopen": -1,
+                    "reuseport": false,
+                    "ssl": true,
+                    "http2": false
+                },
+
+                "server_name": "sslserver1.1",
+                "crud_prefix_url": "/crud/",
+                "doc_prefix_url": "/doc/",
+                "sql_prefix_url": "/sql/",
+                "ssl_certificate": "cert.pem",
+                "ssl_certificate_key": "cert.key",
+                "ssl_session_cache": true,
+                "ssl_session_timeout": 300000,
+                "client_header_timeout": 60000
+            },
+
+            {
+                "listen": {
+                    "address": "127.0.0.1:4444",
+                    "backlog": 512,
+                    "sndbuf": -1,
+                    "rcvbuf": -1,
+                    "so_keepalive": "off",
+                    "tcp_keepidle": 0,
+                    "tcp_keepintvl": 0,
+                    "tcp_keepcnt": 0,
+                    "ipv6_only": true,
+                    "accept_filter": "httpready",
+                    "deferred_accept": false,
+                    "setfib": -1,
+                    "fastopen": -1,
+                    "reuseport": false,
+                    "ssl": true,
+                    "http2": true
+                },
+
+                "server_name": "sslserver2",
+                "crud_prefix_url": "/crud/",
+                "doc_prefix_url": "/doc/",
+                "sql_prefix_url": "/sql/",
+                "ssl_certificate": "cert.pem",
+                "ssl_certificate_key": "cert.key",
+                "ssl_session_cache": true,
+                "ssl_session_timeout": 300000,
+                "client_header_timeout": 60000
+            },
+
+            {
+                "listen": {
+                    "address": "unix:.s.PGREST.8080",
+                    "backlog": 512,
+                    "sndbuf": -1,
+                    "rcvbuf": -1,
+                    "so_keepalive": "on",
+                    "tcp_keepidle": 0,
+                    "tcp_keepintvl": 0,
+                    "tcp_keepcnt": 0,
+                    "ipv6_only": true,
+                    "accept_filter": "httpready",
+                    "deferred_accept": false,
+                    "setfib": -1,
+                    "fastopen": -1,
+                    "reuseport": false,
+                    "ssl": false,
+                    "http2": false
+                },
+
+                "server_name": "unixdomainserver",
+                "crud_prefix_url": "/crud/",
+                "doc_prefix_url": "/doc/",
+                "sql_prefix_url": "/sql/",
+                "client_header_timeout": 60000
+            }
+        ]
+    }
+}

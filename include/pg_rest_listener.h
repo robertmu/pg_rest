@@ -17,81 +17,77 @@
 
 #define DEFAUlT_PGREST_LISTEN_BACKLOG          512
 #define DEFAULT_PGREST_SOCKET_DIR              "/var/run"
-#define PGREST_UNIXSOCK_PATH(path, port, sockdir) \
-		snprintf(path, sizeof(path), "%s/.s.PGREST.%d", \
+#define PGREST_UNIXSOCK_PATH(path, port, sockdir)               \
+		snprintf(path, sizeof(path), "%s/.s.PGREST.%d",         \
 				((sockdir) && *(sockdir) != '\0') ? (sockdir) : \
-				DEFAULT_PGSOCKET_DIR, \
+				DEFAULT_PGSOCKET_DIR,                           \
 				(port))
-
-typedef List* (*pgrest_listener_hook_pt) (void *);
 
 typedef struct pgrest_listener_s  pgrest_listener_t;
 
 struct pgrest_listener_s {
-    evutil_socket_t     fd;
+    evutil_socket_t          fd;
 
-    struct sockaddr    *sockaddr;
-    socklen_t           socklen;
-    char               *addr_text;
+    struct sockaddr         *sockaddr;
+    socklen_t                socklen;
+    char                    *addr_text;
+    size_t                   addr_text_max_len;
 
-    int                 type;
+    int                      type;
 
-    int                 backlog;
-    int                 rcvbuf;
-    int                 sndbuf;
+    int                      backlog;
+    int                      rcvbuf;
+    int                      sndbuf;
 #ifdef HAVE_KEEPALIVE_TUNABLE
-    int                 keepidle;
-    int                 keepintvl;
-    int                 keepcnt;
+    int                      keepidle;
+    int                      keepintvl;
+    int                      keepcnt;
 #endif
 
-    pgrest_conn_handler_pt  handler;
-    pgrest_connection_t    *connection;
-    struct event       *ev;
+    pgrest_conn_handler_pt   handler;
+    void                    *servers; 
 
-    int                 post_accept_timeout;
+    pgrest_connection_t     *connection;
+    struct event            *ev;
 
-    unsigned            open:1;
-    unsigned            bound:1;
-    unsigned            nonblocking_accept:1;
-    unsigned            listen:1;
-    unsigned            nonblocking:1;
-    unsigned            addr_ntop:1;
+    int                      post_accept_timeout;
+
+    unsigned                 open:1;
+    unsigned                 bound:1;
+    unsigned                 nonblocking_accept:1;
+    unsigned                 listen:1;
+    unsigned                 nonblocking:1;
+    unsigned                 addr_ntop:1;
 #if defined(HAVE_IPV6) && defined(IPV6_V6ONLY)
-    unsigned            ipv6only:1;
+    unsigned                 ipv6only:1;
 #endif
-
-#if (HAVE_REUSEPORT)
-    unsigned            reuseport:1;
+#ifdef HAVE_REUSEPORT
+    unsigned                 reuseport:1;
 #endif
-    unsigned            keepalive:2;
+    unsigned                 keepalive:2;
 
-#if (HAVE_DEFERRED_ACCEPT)
-    unsigned            deferred_accept:1;
-    unsigned            add_deferred:1;
+#ifdef HAVE_DEFERRED_ACCEPT
+    unsigned                 deferred_accept:1;
+    unsigned                 add_deferred:1;
 #ifdef SO_ACCEPTFILTER
-    char               *accept_filter;
+    char                    *accept_filter;
 #endif
 #endif
 
-#if (HAVE_SETFIB)
-    int                 setfib;
+#ifdef HAVE_SETFIB
+    int                      setfib;
 #endif
-
-#if (HAVE_TCP_FASTOPEN)
-    int                 fastopen;
+#ifdef HAVE_TCP_FASTOPEN
+    int                      fastopen;
 #endif
 };
 
-void  pgrest_listener_hook_add(pgrest_listener_hook_pt init, void *data);
 void  pgrest_listener_init(void);
 bool  pgrest_listener_resume(void);
 bool  pgrest_listener_pause(bool all);
-List *pgrest_listener_add(int family, const char *host_name,
-                          unsigned short port_number, 
-                          const char *unix_socket_dir,
-                          pgrest_conn_handler_pt conn_handler);
-void pgrest_listener_info_print(void);
-void pgrest_listener_fini(void);
+void  pgrest_listener_info_print(void);
+void  pgrest_listener_fini(void);
+pgrest_listener_t* pgrest_listener_create(void *sockaddr, 
+                                          socklen_t socklen);
 
 #endif /* PG_REST_LISTENER_H_ */

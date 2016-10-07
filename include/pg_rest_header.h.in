@@ -10,9 +10,6 @@
 /* Defined if libevent headers and library are present */
 #undef HAVE_LIBEVENT
 
-/* Define to 1 if libjson is present */
-#undef HAVE_LIBJSON
-
 /* Define to 1 if openssl is present */
 #undef HAVE_OPENSSL
 
