@@ -29,10 +29,13 @@ typedef enum {
 
 struct pgrest_connection_s {
     void                 *data;
-    struct bufferevent   *bev;
+
+    struct event         *rev;
+    struct event         *wev;
 
     evutil_socket_t       fd;
     pgrest_listener_t    *listener;
+    pgrest_mpool_t       *pool;
 
     int                   type;
     struct sockaddr      *sockaddr;
@@ -47,7 +50,7 @@ struct pgrest_connection_s {
     socklen_t             local_socklen;
 
     /* list link in pgrest_conn_reuse_conns */
-    dlist_node	          elem;
+    dlist_node            elem;
 
     unsigned              timedout:1;
     unsigned              error:1;
@@ -66,9 +69,11 @@ struct pgrest_connection_s {
 extern int                pgrest_conn_free_noconn;
 
 void pgrest_conn_init(int worker_noconn);
-pgrest_connection_t *pgrest_conn_get(evutil_socket_t fd, bool event);
+pgrest_connection_t *pgrest_conn_get(evutil_socket_t fd);
 void pgrest_conn_free(pgrest_connection_t *conn);
 void pgrest_conn_close(pgrest_connection_t *conn);
 void pgrest_conn_reusable(pgrest_connection_t *conn, int reusable);
+ssize_t pgrest_conn_recv(pgrest_connection_t *conn, char *buf, size_t size);
+ssize_t pgrest_conn_send(pgrest_connection_t *conn, char *buf, size_t size);
 
 #endif /* PG_REST_CONN_H_ */

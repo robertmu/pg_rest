@@ -17,7 +17,9 @@ extern bool  pgrest_acceptor_use_mutex;
 extern bool  pgrest_acceptor_mutex_held;
 extern int   pgrest_acceptor_disabled;
 
-void pgrest_acceptor_accept_handler(evutil_socket_t fd, short event, void *arg);
+void pgrest_acceptor_accept_handler(evutil_socket_t fd, 
+                                    short event, 
+                                    void *arg);
 void pgrest_acceptor_init(int worker_processes);
 bool pgrest_acceptor_trylock_mutex(void);
 void pgrest_acceptor_unlock_mutex(void);

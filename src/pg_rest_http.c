@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------
  *
  * pq_rest_http.c
- *   http 1.0,1.1 handler routines
+ *   http common routines
  *
  *
  *
@@ -17,11 +17,6 @@
 #include "pg_rest_http.h"
 
 static pgrest_array_t *pgrest_http_ports = NULL;
-
-static void 
-pgrest_http_conn_init(pgrest_connection_t *conn)
-{
-}
 
 static pgrest_listener_t *
 pgrest_http_add_listener(pgrest_http_conf_addr_t *addr)
@@ -165,7 +160,7 @@ pgrest_http_add_addresses(pgrest_conf_http_server_t *conf_server,
 
     for (i = 0; i < port->addrs.size; i++) {
 
-        if (!pgrest_util_cmp_sockaddr(&conf_listener->sockaddr.sockaddr, 
+        if (!pgrest_inet_cmp_sockaddr(&conf_listener->sockaddr.sockaddr, 
                                       conf_listener->socklen,
                                       &addr[i].opt.sockaddr.sockaddr,
                                       addr[i].opt.socklen, 0)
@@ -235,7 +230,7 @@ pgrest_http_add_listen(pgrest_conf_http_server_t *conf_server,
     pgrest_http_conf_port_t    *port;
 
     sa = &conf_listener->sockaddr.sockaddr;
-    port_number = pgrest_util_get_port(sa);
+    port_number = pgrest_inet_get_port(sa);
 
     port = ports->elts;
     for (i = 0; i < ports->size; i++) {

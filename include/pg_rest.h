@@ -14,5 +14,4 @@
 extern void _PG_init(void);
 extern void _PG_fini(void);
 
-
 #endif /* PG_REST_H */

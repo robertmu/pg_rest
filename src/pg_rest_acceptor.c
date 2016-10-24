@@ -29,10 +29,12 @@ int                            pgrest_acceptor_disabled;
 static bool 
 pgrest_acceptor_shm_data_init(pgrest_shm_seg_t *seg)
 {
-    pgrest_acceptor_data = (pgrest_acceptor_data_t *) CACHELINEALIGN(seg->addr);
+    pgrest_acceptor_data = (pgrest_acceptor_data_t *) 
+                                CACHELINEALIGN(seg->addr);
     SpinLockInit(&pgrest_acceptor_data->acceptor_mutex);
 
-    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "initialize acceptor_mutex successfull")));
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "initialize "
+                              "acceptor_mutex successfull")));
 
     return true;
 }
@@ -50,7 +52,8 @@ pgrest_acceptor_shm_init(void)
                               false);
     if (seg == NULL) {
         ereport(ERROR,
-                (errmsg(PGREST_PACKAGE " " "initialize acceptor shared data failed")));
+                (errmsg(PGREST_PACKAGE " " "initialize "
+                        "acceptor shared data failed")));
     }
 
     seg->init = pgrest_acceptor_shm_data_init;
@@ -69,29 +72,29 @@ pgrest_acceptor_timer_handler(evutil_socket_t fd, short events, void *arg)
 }
 
 static bool
-pgrest_acceptor_worker_init(void *data)
+pgrest_acceptor_worker_init(void *data, void *base)
 {
-    pgrest_acceptor_event_timer = pgrest_event_new(pgrest_worker_event_base, 
+    pgrest_acceptor_event_timer = pgrest_event_new(base, 
                                             -1, 
                                             0, 
                                             pgrest_acceptor_timer_handler, 
                                             NULL);
     if (!pgrest_acceptor_event_timer) {
-        ereport(WARNING, (errmsg(PGREST_PACKAGE " " "worker %d create event "
-                                 "object failed", pgrest_worker_index)));
+        ereport(WARNING, (errmsg(PGREST_PACKAGE " " "worker %d create event"
+                                 " object failed", pgrest_worker_index)));
         return false;
     }
 
     pgrest_event_priority_set(pgrest_acceptor_event_timer, 0);
 
-    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d initialize acceptor "
-                               "successfull", pgrest_worker_index)));
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d initialize "
+                               "acceptor successfull", pgrest_worker_index)));
 
     return true;
 }
 
 static bool
-pgrest_acceptor_worker_exit(void *data)
+pgrest_acceptor_worker_exit(void *data, void *base)
 {
     pgrest_event_free(pgrest_acceptor_event_timer);
     debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d acceptor_exit ",
@@ -114,6 +117,10 @@ pgrest_acceptor_close_conn(pgrest_connection_t *conn)
     conn->fd = (evutil_socket_t) -1;
 
     closesocket(fd);
+
+    if (conn->pool) {
+        pgrest_mpool_destroy(conn->pool);
+    }
 }
 
 void
@@ -134,19 +141,20 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
     listener = lconn->listener;
     available = pgrest_setting.acceptor_multi_accept;
 
-    ereport(DEBUG2, (errmsg(PGREST_PACKAGE " " "accept on %s multi_accept: %d",
-                               listener->addr_text, 
-                               pgrest_setting.acceptor_multi_accept)));
+    ereport(DEBUG2, (errmsg(PGREST_PACKAGE " " "accept on %s multi_accept: %d"
+                             ,listener->addr_text, 
+                             pgrest_setting.acceptor_multi_accept)));
 
     do {
         sockaddr.salen = sizeof(sockaddr.addr);
 
 #ifdef HAVE_ACCEPT4
         if (use_accept4) {
-            fd = accept4(afd, (struct sockaddr *) &sockaddr.addr, &sockaddr.salen, 
-                         SOCK_NONBLOCK);
+            fd = accept4(afd, (struct sockaddr *) &sockaddr.addr, 
+                         &sockaddr.salen, SOCK_NONBLOCK);
         } else {
-            fd = accept(afd, (struct sockaddr *) &sockaddr.addr, &sockaddr.salen);
+            fd = accept(afd, (struct sockaddr *) &sockaddr.addr, 
+                        &sockaddr.salen);
         }
 #else
         fd = accept(afd, (struct sockaddr *) &sockaddr.addr, &sockaddr.salen);
@@ -156,7 +164,8 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
             err = EVUTIL_SOCKET_ERROR();
 
             if (PGREST_UTIL_ERR_RW_RETRIABLE(err)) {
-                debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "accept() not ready")));
+                debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "accept()"
+                                           " not ready")));
                 return;
             }
 
@@ -191,13 +200,16 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
 
                 if (pgrest_acceptor_use_mutex ) {
                     pgrest_acceptor_disabled = 1;
-                    pgrest_acceptor_mutex_held = false;
+                    if (pgrest_acceptor_mutex_held) {
+                        pgrest_acceptor_mutex_held = false;
+                        pgrest_acceptor_unlock_mutex();            
+                    }
                     return;
                 }
 
                 if(!pgrest_event_add(pgrest_acceptor_event_timer, 
-                                          EV_TIMEOUT, 
-                                          pgrest_setting.acceptor_mutex_delay)) 
+                                     EV_TIMEOUT, 
+                                     pgrest_setting.acceptor_mutex_delay))
                 {
                     /* quit main event loop */
                     pgrest_worker_event_error = true;
@@ -210,7 +222,7 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
         pgrest_acceptor_disabled = pgrest_setting.worker_noconn / 8
                                    - pgrest_conn_free_noconn;
 
-        conn = pgrest_conn_get(fd, true);
+        conn = pgrest_conn_get(fd);
 
         if (conn == NULL) {
             closesocket(fd);
@@ -219,13 +231,24 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
 
         conn->type = SOCK_STREAM;
 
-        conn->sockaddr = palloc(sockaddr.salen);
+        if ((conn->pool = pgrest_mpool_create()) == NULL) {
+            pgrest_acceptor_close_conn(conn);
+            return;
+        }
+
+        if((conn->sockaddr = pgrest_mpool_alloc(conn->pool, 
+                                                sockaddr.salen)) == NULL)
+        {
+            pgrest_acceptor_close_conn(conn);
+            return;
+        }
         memcpy(conn->sockaddr, &sockaddr.addr, sockaddr.salen);
 
         if (evutil_make_socket_nonblocking(fd) == -1) {
             ereport(WARNING,
                     (errcode_for_socket_access(),
-                     errmsg(PGREST_PACKAGE " " "make socket nonblocking failed: %m")));
+                     errmsg(PGREST_PACKAGE " " "make socket"
+                             " nonblocking failed: %m")));
             pgrest_acceptor_close_conn(conn);
             return;
         }
@@ -241,8 +264,14 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
         }
 #endif
         if (listener->addr_ntop) {
-            conn->addr_text = palloc(listener->addr_text_max_len);
-            (void) pgrest_util_inet_ntop(conn->sockaddr, 
+            conn->addr_text = pgrest_mpool_alloc(conn->pool, 
+                                                 listener->addr_text_max_len);
+            if (conn->addr_text == NULL) {
+                pgrest_acceptor_close_conn(conn);
+                return;
+            }
+
+            (void) pgrest_inet_ntop(conn->sockaddr, 
                                          conn->socklen, 
                                          conn->addr_text, 
                                          listener->addr_text_max_len,
@@ -259,8 +288,8 @@ pgrest_acceptor_trylock_mutex(void)
 {
     if (!SpinTryLockAcquire(&pgrest_acceptor_data->acceptor_mutex)) {
 
-        debug_log(DEBUG2, (errmsg(PGREST_PACKAGE " " "worker %d accept mutex locked",
-                                   pgrest_worker_index)));
+        debug_log(DEBUG2, (errmsg(PGREST_PACKAGE " " "worker %d accept "
+                                  "mutex locked", pgrest_worker_index)));
 
         if (pgrest_acceptor_mutex_held) {
             return true;
@@ -277,8 +306,9 @@ pgrest_acceptor_trylock_mutex(void)
         return true;
     }
 
-    debug_log(DEBUG2, (errmsg(PGREST_PACKAGE " " "worker %d accept mutex locked failed: %d",
-                               pgrest_worker_index, pgrest_acceptor_mutex_held)));
+    debug_log(DEBUG2, (errmsg(PGREST_PACKAGE " " "worker %d accept mutex "
+                               "locked failed: %d", pgrest_worker_index,
+                                pgrest_acceptor_mutex_held)));
 
     if (pgrest_acceptor_mutex_held) {
         if (pgrest_listener_pause(false) == false) {
@@ -296,8 +326,8 @@ pgrest_acceptor_trylock_mutex(void)
 void
 pgrest_acceptor_unlock_mutex(void)
 {
-    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d accept unlock mutex",
-                               pgrest_worker_index)));
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d accept unlock"
+                               " mutex", pgrest_worker_index)));
 
     SpinLockRelease(&pgrest_acceptor_data->acceptor_mutex);
 }

@@ -18,10 +18,10 @@
 #define DEFAUlT_PGREST_LISTEN_BACKLOG          512
 #define DEFAULT_PGREST_SOCKET_DIR              "/var/run"
 #define PGREST_UNIXSOCK_PATH(path, port, sockdir)               \
-		snprintf(path, sizeof(path), "%s/.s.PGREST.%d",         \
-				((sockdir) && *(sockdir) != '\0') ? (sockdir) : \
-				DEFAULT_PGSOCKET_DIR,                           \
-				(port))
+        snprintf(path, sizeof(path), "%s/.s.PGREST.%d",         \
+                ((sockdir) && *(sockdir) != '\0') ? (sockdir) : \
+                DEFAULT_PGSOCKET_DIR,                           \
+                (port))
 
 typedef struct pgrest_listener_s  pgrest_listener_t;
 
@@ -48,7 +48,6 @@ struct pgrest_listener_s {
     void                    *servers; 
 
     pgrest_connection_t     *connection;
-    struct event            *ev;
 
     int                      post_accept_timeout;
 

@@ -23,6 +23,7 @@ struct pgrest_setting_s {
     bool            acceptor_multi_accept;
     bool            http_tcp_nopush;
     int             http_keepalive_timeout;
+    char            temp_buffer_path[MAXPGPATH];
     pgrest_array_t  conf_http_servers;       /* pgrest_conf_http_server_t */
     pgrest_array_t  conf_listeners;
     pgrest_array_t *conf_ports;

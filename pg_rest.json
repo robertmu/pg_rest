@@ -15,6 +15,7 @@
     "http": {
         "tcp_nopush": true,
         "keepalive_timeout": 50000,
+        "temp_buffer_path": "/tmp",
 
         "server": [
             {
@@ -40,10 +41,27 @@
                 },
 
                 "server_name": "plainserver,asdlkfjaskdfj",
-                "crud_prefix_url": "/crud/",
-                "doc_prefix_url": "/doc/",
-                "sql_prefix_url": "/sql/",
-                "client_header_timeout": 60000
+                "client_header_timeout": 60000,
+                "location": [
+                    {
+                        "path": "/crud",
+                        "pg_connect": {
+                            "address": "127.0.0.1:5432",
+                            "shared": true,
+                            "encode": "utf8"
+                        }
+                    },
+
+                    {
+                        "path": "/doc",
+                        "pg_connect": {
+                            "address": "127.0.0.1:5432",
+                            "shared": true,
+                            "encode": "utf8"
+                        }
+                    }
+
+                ]
             },
 
             {
@@ -67,9 +85,6 @@
                 },
 
                 "server_name": "sslserver1.1",
-                "crud_prefix_url": "/crud/",
-                "doc_prefix_url": "/doc/",
-                "sql_prefix_url": "/sql/",
                 "ssl_certificate": "cert.pem",
                 "ssl_certificate_key": "cert.key",
                 "ssl_session_cache": true,
@@ -98,9 +113,6 @@
                 },
 
                 "server_name": "sslserver2",
-                "crud_prefix_url": "/crud/",
-                "doc_prefix_url": "/doc/",
-                "sql_prefix_url": "/sql/",
                 "ssl_certificate": "cert.pem",
                 "ssl_certificate_key": "cert.key",
                 "ssl_session_cache": true,
@@ -129,9 +141,6 @@
                 },
 
                 "server_name": "unixdomainserver",
-                "crud_prefix_url": "/crud/",
-                "doc_prefix_url": "/doc/",
-                "sql_prefix_url": "/sql/",
                 "client_header_timeout": 60000
             }
         ]

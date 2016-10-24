@@ -1,16 +1,17 @@
 /*-------------------------------------------------------------------------
  *
- * include/pg_rest_http_push.h
+ * include/pg_rest_http_v1.h
  *
- * http push stream handler.
+ * http v1 handler.
  *
  *-------------------------------------------------------------------------
  */
 
-#ifndef PG_REST_HTTP_PUSH_H
-#define PG_REST_HTTP_PUSH_H
+#ifndef PG_REST_HTTP_V1_H
+#define PG_REST_HTTP_V1_H
 
 #include "pg_rest_config.h"
 #include "pg_rest_core.h"
+#include "pg_rest_http.h"
 
-#endif /* PG_REST_HTTP_PUSH_H */
+#endif /* PG_REST_HTTP_V1_H */

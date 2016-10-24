@@ -80,9 +80,6 @@
 /* pg_rest library debug (0=disabled) */
 #undef PGREST_DEBUG
 
-/* pg_rest library malloc replacement (0=disabled) */
-#undef PGREST_MM_REPLACE
-
 /* pg_rest libxml2 version */
 #undef PGREST_LIBXML2_VERSION
 

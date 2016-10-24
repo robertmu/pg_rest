@@ -11,7 +11,7 @@ dnl **********************************************************************
 
 AC_INIT()
 AC_COPYRIGHT([Copyright (c) 2015-2016, Robert Mu])
-AC_CONFIG_HEADERS([include/pg_rest_header.h jansson-2.8/jansson_private_config.h])
+AC_CONFIG_HEADERS([include/pg_rest_header.h jansson/jansson_private_config.h])
 AC_CONFIG_MACRO_DIR([macros])
 
 
@@ -380,7 +380,7 @@ if test ! "x$WITH_LIBOPENSSL" = "x"; then
     LIBS=""
     AC_SEARCH_LIBS([SSL_new], [ssl],
 	    [USE_OPENSSL=yes
-	    OPENSSL_LDFLAGS="$LIBS -lcrypto -levent_openssl "
+	    OPENSSL_LDFLAGS="$LIBS -lcrypto "
 	    AC_DEFINE(HAVE_OPENSSL, 1, [Define to 1 if OpenSSL is present])],
 	    [USE_OPENSSL=no],
 	    [-lcrypto ])
@@ -561,15 +561,6 @@ AC_ARG_ENABLE([debug], AC_HELP_STRING([--enable-debug], [Enable verbose debuggin
 AC_DEFINE_UNQUOTED([PGREST_DEBUG], [$PGREST_DEBUG], [pg_rest library debug (0=disabled)])
 
 dnl ===========================================================================
-dnl disable support for replacing the memory mgt
-dnl ===========================================================================
-
-AC_ARG_ENABLE([malloc-replacement], AC_HELP_STRING([--disable-malloc-replacement], [disable support for replacing the memory mgt functions]), 
-	[PGREST_MM_REPLACE=0], [PGREST_MM_REPLACE=1]) 
-
-AC_DEFINE_UNQUOTED([PGREST_MM_REPLACE], [$PGREST_MM_REPLACE], [pg_rest library malloc replacement (0=disabled)])
-
-dnl ===========================================================================
 dnl Allow the user to enable pg_rest profiling with --enable-profile
 dnl ===========================================================================
 
@@ -622,7 +613,7 @@ dnl Output the relevant files
 dnl ===========================================================================
 
 AC_OUTPUT([Makefile
-   jansson-2.8/src/jansson_config.h
+   jansson/src/jansson_config.h
    pg_rest.control])
     
 AC_MSG_RESULT()
@@ -642,4 +633,3 @@ fi
 AC_MSG_RESULT([  Debug support:        ${PGREST_DEBUG}])
 AC_MSG_RESULT([  Profiling support:    ${PGREST_PROFILE}])
 AC_MSG_RESULT([  Coverage testing:     ${PGREST_COVERAGE}])
-AC_MSG_RESULT([  Malloc replacement:   ${PGREST_MM_REPLACE}])

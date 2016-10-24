@@ -15,10 +15,6 @@
 #include "pg_rest_config.h"
 #include "pg_rest_core.h"
 
-typedef struct pgrest_conf_command_s    pgrest_conf_command_t;
-typedef void  *(*pgrest_conf_create_pt) (void *);
-typedef void   (*pgrest_conf_set_pt)    (pgrest_conf_command_t *, void *, void *);
-
 struct pgrest_conf_command_s {
     const char            *name;
     size_t                 offset;
@@ -40,9 +36,11 @@ static void  pgrest_conf_integer_set(pgrest_conf_command_t *cmd,
 static void  pgrest_conf_bool_set(pgrest_conf_command_t *cmd, 
                                  void *val, 
                                  void *parent);
+#ifdef HAVE_OPENSSL
 static void  pgrest_conf_string_set(pgrest_conf_command_t *cmd, 
                                  void *val, 
                                  void *parent);
+#endif
 static void  pgrest_conf_address_set(pgrest_conf_command_t *cmd, 
                                  void *val, 
                                  void *parent);
@@ -56,6 +54,9 @@ static void  pgrest_conf_bool_set2(pgrest_conf_command_t *cmd,
                                  void *val, 
                                  void *parent);
 static void  pgrest_conf_afilter_set(pgrest_conf_command_t *cmd, 
+                                 void *val, 
+                                 void *parent);
+static void  pgrest_conf_tbpath_set(pgrest_conf_command_t *cmd, 
                                  void *val, 
                                  void *parent);
 static void  pgrest_conf_deferred_set(pgrest_conf_command_t *cmd, 
@@ -80,7 +81,7 @@ static void  pgrest_conf_ssl_set(pgrest_conf_command_t *cmd,
                                  void *val, 
                                  void *parent);
 
-static pgrest_conf_command_t  pgrest_conf_commands[] = {
+static pgrest_conf_command_t  pgrest_conf_static_cmds[] = {
 
     { "root",
       0,
@@ -172,6 +173,13 @@ static pgrest_conf_command_t  pgrest_conf_commands[] = {
       3600000,
       NULL,
       pgrest_conf_integer_set },
+
+    { "temp_buffer_path",
+      offsetof(pgrest_setting_t, temp_buffer_path),
+      0,
+      0,
+      NULL,
+      pgrest_conf_tbpath_set },
 
     { "server",
       0,
@@ -320,27 +328,6 @@ static pgrest_conf_command_t  pgrest_conf_commands[] = {
       NULL,
       pgrest_conf_server_name_set },
 
-    { "crud_prefix_url",
-      offsetof(pgrest_conf_http_server_t, crud_prefix_url),
-      0,
-      0,
-      NULL,
-      pgrest_conf_string_set },
-
-    { "sql_prefix_url",
-      offsetof(pgrest_conf_http_server_t, sql_prefix_url),
-      0,
-      0,
-      NULL,
-      pgrest_conf_string_set },
-
-    { "doc_prefix_url",
-      offsetof(pgrest_conf_http_server_t, doc_prefix_url),
-      0,
-      0,
-      NULL,
-      pgrest_conf_string_set },
-
 #ifdef HAVE_OPENSSL
     { "ssl_certificate",
       offsetof(pgrest_conf_http_server_t, ssl_certificate),
@@ -380,7 +367,7 @@ static pgrest_conf_command_t  pgrest_conf_commands[] = {
 
     { NULL, 0, 0, 0, NULL, NULL }
 };
-
+static List              *pgrest_conf_dynamic_cmds = NIL;
 static pgrest_setting_t  *pgrest_setting_private;
 
 static void
@@ -419,6 +406,7 @@ pgrest_conf_bool_set(pgrest_conf_command_t *cmd, void *val, void *parent)
     *save = *newval;
 }
 
+#ifdef HAVE_OPENSSL
 static void
 pgrest_conf_string_set(pgrest_conf_command_t *cmd, void *val, void *parent)
 {
@@ -429,6 +417,7 @@ pgrest_conf_string_set(pgrest_conf_command_t *cmd, void *val, void *parent)
     save = (char **) (object + cmd->offset);
     *save = pstrdup(newval);
 }
+#endif
 
 static void  
 pgrest_conf_address_set(pgrest_conf_command_t *cmd, void *val, void *parent)
@@ -444,7 +433,7 @@ pgrest_conf_address_set(pgrest_conf_command_t *cmd, void *val, void *parent)
     u.listen = 1;
     u.default_port = 8080;
 
-    if (!pgrest_util_parse_url(&u)) {
+    if (!pgrest_inet_parse_url(&u)) {
         if (u.err) {
             ereport(ERROR, 
                     (errmsg(PGREST_PACKAGE " " "invalid value \"%s\" for "
@@ -457,11 +446,11 @@ pgrest_conf_address_set(pgrest_conf_command_t *cmd, void *val, void *parent)
     conf_listener->socklen = u.socklen;
     conf_listener->wildcard = u.wildcard;
 
-    (void) pgrest_util_inet_ntop(&conf_listener->sockaddr.sockaddr, 
-                                 conf_listener->socklen, 
-                                 conf_listener->addr,
-                                 PGREST_SOCKADDR_STRLEN, 
-                                 true);
+    (void) pgrest_inet_ntop(&conf_listener->sockaddr.sockaddr, 
+                            conf_listener->socklen, 
+                            conf_listener->addr,
+                            PGREST_SOCKADDR_STRLEN, 
+                            true);
 }
 
 static void  
@@ -484,21 +473,6 @@ pgrest_conf_integer_set2(pgrest_conf_command_t *cmd, void *val, void *parent)
     pgrest_conf_bind_set(cmd, &value, parent);
     pgrest_conf_integer_set(cmd, val, parent);
 }
-
-#if 0
-static void 
-pgrest_conf_string_set2(pgrest_conf_command_t *cmd, void *val, void *parent)
-{
-    char                   *value = val;
-    bool                    set = false;
-
-    if (value && value[0] != '\0') {
-        set = true;            
-    }
-    pgrest_conf_bind_set(cmd, &set, parent);
-    pgrest_conf_string_set(cmd, val, parent);
-}
-#endif
 
 static void  
 pgrest_conf_bool_set2(pgrest_conf_command_t *cmd, void *val, void *parent)
@@ -525,6 +499,24 @@ pgrest_conf_afilter_set(pgrest_conf_command_t *cmd, void *val, void *parent)
 
     pgrest_conf_bind_set(cmd, &set, parent);
     StrNCpy(conf_listener->accept_filter, value, PGREST_AF_SIZE);
+}
+
+static void  
+pgrest_conf_tbpath_set(pgrest_conf_command_t *cmd, void *val, void *parent)
+{
+    pgrest_setting_t *setting = parent;
+    char             *value = val;
+    char              buf[sizeof(setting->temp_buffer_path)];
+
+    int len = snprintf(buf, sizeof(buf), "%s%s", value, 
+                        strrchr(PGREST_BUFFER_DTEMP_PATH, '/'));
+    if (len >= sizeof(buf)) {
+        ereport(ERROR, 
+                (errmsg(PGREST_PACKAGE " " "invalid value \"%s\" for "
+                        "directive \"%s\": path too long", value, cmd->name)));
+    }
+
+    strcpy(setting->temp_buffer_path, buf);
 }
 
 static void  
@@ -662,9 +654,7 @@ pgrest_conf_server_name_set(pgrest_conf_command_t *cmd, void *val, void *parent)
 static void *
 pgrest_conf_setting_create(void *parent)
 {
-    pgrest_setting_private = palloc0fast(sizeof(pgrest_setting_t));
-
-    pgrest_setting_private->worker_processes = 4;
+    pgrest_setting_private->worker_processes = pgrest_util_ncpu();
     pgrest_setting_private->worker_priority = 0;
     pgrest_setting_private->worker_nofile = 1024;
     pgrest_setting_private->worker_noconn = 1024;
@@ -673,6 +663,8 @@ pgrest_conf_setting_create(void *parent)
     pgrest_setting_private->acceptor_multi_accept = false;
     pgrest_setting_private->http_tcp_nopush = false;
     pgrest_setting_private->http_keepalive_timeout = 600000;
+    strcpy(pgrest_setting_private->temp_buffer_path, 
+            PGREST_BUFFER_DTEMP_PATH);
 
     pgrest_array_init(&pgrest_setting_private->conf_http_servers,
                       4, 
@@ -693,9 +685,6 @@ pgrest_conf_http_server_create(void *parent)
     conf_http_server = pgrest_array_push(&setting->conf_http_servers);
 
     conf_http_server->server_name = "";
-    conf_http_server->crud_prefix_url = "/crud/";
-    conf_http_server->sql_prefix_url = "/sql/";
-    conf_http_server->doc_prefix_url = "/doc/";
 #ifdef HAVE_OPENSSL
     conf_http_server->ssl_certificate = "cert.pem";
     conf_http_server->ssl_certificate_key = "ssl_certificate_key";
@@ -737,7 +726,7 @@ pgrest_conf_listener_create(void *parent)
     conf_listener->socklen = sizeof(struct sockaddr_in);
     conf_listener->wildcard = true;
 
-    (void) pgrest_util_inet_ntop(&conf_listener->sockaddr.sockaddr, 
+    (void) pgrest_inet_ntop(&conf_listener->sockaddr.sockaddr, 
                                  conf_listener->socklen,
                                  conf_listener->addr, 
                                  PGREST_SOCKADDR_STRLEN, 
@@ -759,81 +748,20 @@ pgrest_conf_listener_create(void *parent)
     return conf_listener;
 }
 
-static void
-pgrest_conf_copy_http_server(pgrest_conf_http_server_t *new_server, 
-                             pgrest_conf_http_server_t *old_server)
-{
-    pgrest_http_server_name_t *sn;
-    pgrest_uint_t              i;
-
-    new_server->server_name = pstrdup(old_server->server_name);
-    new_server->crud_prefix_url = pstrdup(old_server->crud_prefix_url);
-    new_server->sql_prefix_url = pstrdup(old_server->sql_prefix_url);
-    new_server->doc_prefix_url = pstrdup(old_server->doc_prefix_url);
-#ifdef HAVE_OPENSSL
-    new_server->ssl_certificate = pstrdup(old_server->ssl_certificate);
-    new_server->ssl_certificate_key = pstrdup(old_server->ssl_certificate_key);
-    new_server->ssl_session_cache = old_server->ssl_session_cache;
-    new_server->ssl_session_timeout = old_server->ssl_session_timeout;
-#endif
-    new_server->client_header_timeout = old_server->client_header_timeout;
-    new_server->listen = old_server->listen;
-
-    pgrest_array_copy(&new_server->server_names, &old_server->server_names);
-
-    sn = new_server->server_names.elts;
-    for (i = 0; i < new_server->server_names.size; i++) {
-        sn[i].server = new_server;
-    }
-}
-
-static void
-pgrest_conf_copy_http_servers(pgrest_array_t *dst, pgrest_array_t *src)
-{
-    pgrest_conf_http_server_t *old_server;
-    pgrest_conf_http_server_t *new_server;
-    pgrest_uint_t              i;
-
-    old_server = src->elts;
-    for (i = 0; i < src->size; i++) {
-        new_server = pgrest_array_push(dst);
-        pgrest_array_init(&new_server->server_names, 
-                          2, 
-                          sizeof(pgrest_http_server_name_t));
-        pgrest_conf_copy_http_server(new_server, &old_server[i]);
-    }
-}
-
-static void
-pgrest_conf_copy_setting(pgrest_setting_t *new_setting, 
-                         pgrest_setting_t *old_setting,
-                         MemoryContext     mctx_old)
-{
-    MemoryContext mctx_save = MemoryContextSwitchTo(mctx_old);
-
-    new_setting->worker_processes = old_setting->worker_processes;
-    new_setting->worker_priority = old_setting->worker_priority;
-    new_setting->worker_noconn = old_setting->worker_noconn;
-    new_setting->worker_nofile = old_setting->worker_nofile;
-    new_setting->acceptor_mutex = old_setting->acceptor_mutex;
-    new_setting->acceptor_mutex_delay = old_setting->acceptor_mutex_delay;
-    new_setting->acceptor_multi_accept = old_setting->acceptor_multi_accept;
-    new_setting->http_tcp_nopush = old_setting->http_tcp_nopush;
-    new_setting->http_keepalive_timeout = old_setting->http_keepalive_timeout;
-
-    pgrest_array_copy(&new_setting->conf_listeners, &old_setting->conf_listeners);
-    pgrest_conf_copy_http_servers(&new_setting->conf_http_servers, 
-                                  &old_setting->conf_http_servers);
-
-    MemoryContextSwitchTo(mctx_save);
-}
-
 static pgrest_conf_command_t *
 pgrest_conf_cmd_find(const char *name)
 {
     pgrest_conf_command_t  *cmd;
+    ListCell               *cell;
 
-    for ( cmd = pgrest_conf_commands ; cmd->name; cmd++) {
+    for ( cmd = pgrest_conf_static_cmds ; cmd->name; cmd++) {
+        if (!strcmp(cmd->name, name)) {
+            return cmd;
+        }
+    }
+
+    foreach(cell, pgrest_conf_dynamic_cmds) {
+        cmd = lfirst(cell);
         if (!strcmp(cmd->name, name)) {
             return cmd;
         }
@@ -961,9 +889,7 @@ pgrest_conf_values_check(pgrest_setting_t *setting)
 
 static bool
 pgrest_conf_parse_init(const char *filename, 
-                       json_t **jroot, 
-                       MemoryContext *mctx_new,
-                       MemoryContext *mctx_old)
+                       json_t **jroot)
 {
     json_error_t            jerror;
 
@@ -975,27 +901,20 @@ pgrest_conf_parse_init(const char *filename,
         return false;
     }
 
-    *mctx_new = AllocSetContextCreate(TopMemoryContext,
-                                      PGREST_PACKAGE " " "parser",
-                                      ALLOCSET_SMALL_SIZES);
-    *mctx_old = MemoryContextSwitchTo(*mctx_new);
     return true;
 }
 
 static void
-pgrest_conf_parse_fini(json_t *jroot, 
-                       MemoryContext mctx_new, 
-                       MemoryContext mctx_old)
+pgrest_conf_parse_fini(json_t *jroot)
 {
-    mctx_old = MemoryContextSwitchTo(mctx_new);
-    MemoryContextDelete(mctx_old);
     json_decref(jroot);
 }
 
 static bool
-pgrest_conf_parse_iner(json_t *jroot, MemoryContext mctx)
+pgrest_conf_parse_iner(json_t *jroot)
 {
     bool result = true;
+    MemoryContext cctx = CurrentMemoryContext;
 
     PG_TRY();
     {
@@ -1005,7 +924,7 @@ pgrest_conf_parse_iner(json_t *jroot, MemoryContext mctx)
     {
         EmitErrorReport();
         FlushErrorState();
-        MemoryContextSwitchTo(mctx);
+        MemoryContextSwitchTo(cctx);
         result = false;
     }
     PG_END_TRY();
@@ -1013,21 +932,37 @@ pgrest_conf_parse_iner(json_t *jroot, MemoryContext mctx)
     return result;
 }
 
+void 
+pgrest_conf_def_cmd(const char *name, size_t offset, int min_val, int max_val,
+                    pgrest_conf_create_pt create_conf, pgrest_conf_set_pt set)
+{
+    pgrest_conf_command_t *cmd;
+
+    cmd = palloc0(sizeof(pgrest_conf_command_t));
+
+    cmd->name = name;
+    cmd->offset = offset;
+    cmd->min_val = min_val;
+    cmd->max_val = max_val;
+    cmd->create_conf = create_conf;
+    cmd->set = set;
+
+    pgrest_conf_dynamic_cmds = lappend(pgrest_conf_dynamic_cmds, cmd);
+}
+
 bool 
 pgrest_conf_parse(pgrest_setting_t *setting, const char *filename)
 {
-    MemoryContext           new_context;
-    MemoryContext           old_context;
     json_t                 *jroot;
 
+    pgrest_setting_private = setting;
     
-    if (!pgrest_conf_parse_init(filename, &jroot,
-                                &new_context, &old_context)) {
+    if (!pgrest_conf_parse_init(filename, &jroot)) {
         return false;
     }
 
-    if (!pgrest_conf_parse_iner(jroot, new_context)) {
-        pgrest_conf_parse_fini(jroot, old_context, new_context);
+    if (!pgrest_conf_parse_iner(jroot)) {
+        pgrest_conf_parse_fini(jroot);
         return false;
     }
 
@@ -1035,21 +970,11 @@ pgrest_conf_parse(pgrest_setting_t *setting, const char *filename)
     pgrest_conf_default_values(pgrest_setting_private);
 
     if (!pgrest_conf_values_check(pgrest_setting_private)) {
-        pgrest_conf_parse_fini(jroot, old_context, new_context);
+        pgrest_conf_parse_fini(jroot);
         return false;
     }
 
-    /* TODO compare settings */
-
-    /* copy setting */
-    pgrest_conf_copy_setting(setting, pgrest_setting_private, old_context);
-
     /* release resource */
-    pgrest_conf_parse_fini(jroot, old_context, new_context);
+    pgrest_conf_parse_fini(jroot);
     return true;
-}
-
-void pgrest_conf_info_print(void)
-{
-
 }

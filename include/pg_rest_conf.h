@@ -10,6 +10,11 @@
 #ifndef PG_REST_CONF_H
 #define PG_REST_CONF_H
 
+typedef struct pgrest_conf_command_s     pgrest_conf_command_t;
+typedef void  *(*pgrest_conf_create_pt)  (void *);
+typedef void   (*pgrest_conf_set_pt)     (pgrest_conf_command_t *, 
+                                          void *, 
+                                          void *);
 typedef struct pgrest_conf_http_server_s pgrest_conf_http_server_t;
 
 typedef struct {
@@ -45,9 +50,6 @@ typedef struct {
 
 struct pgrest_conf_http_server_s {
     char                      *server_name;
-    char                      *crud_prefix_url;
-    char                      *sql_prefix_url;
-    char                      *doc_prefix_url;
 #ifdef HAVE_OPENSSL
     char                      *ssl_certificate;
     char                      *ssl_certificate_key;
@@ -60,7 +62,13 @@ struct pgrest_conf_http_server_s {
     void                      *conf_main;
 };
 
+void pgrest_conf_def_cmd(const char           *name,
+                         size_t                offset,
+                         int                   min_val,
+                         int                   max_val,
+                         pgrest_conf_create_pt create_conf,
+                         pgrest_conf_set_pt    set);
+
 bool pgrest_conf_parse(pgrest_setting_t *setting, const char *filename);
-void pgrest_conf_info_print(void);
 
 #endif /* PG_REST_CONF_H */

@@ -42,35 +42,34 @@ typedef void   (*pgrest_conn_handler_pt)  (pgrest_connection_t *conn);
 #endif
 
 #include <limits.h>
-#include <sys/stat.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #ifdef HAVE_NETINET_TCP_H
 #include <netinet/tcp.h>
 #endif
-
-#ifndef WIN32
+#ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
+#endif
+#ifndef WIN32
+#include <sys/mman.h>
 #endif
 
 #include <event2/event.h>
-#include <event2/bufferevent.h>
-#ifdef HAVE_OPENSSL
-#include <event2/bufferevent_ssl.h>
-#endif
-
 #include <jansson.h>
 
 #include "pg_rest_util.h"
 #include "pg_rest_slock.h"
 #include "pg_rest_array.h"
 #include "pg_rest_cqueue.h"
+#include "pg_rest_memory.h"
+#include "pg_rest_inet.h"
 #include "pg_rest_guc.h"
 #include "pg_rest_conf.h"
 #include "pg_rest_slab.h"
 #include "pg_rest_ipc.h"
 #include "pg_rest_shm.h"
-#include "pg_rest_worker.h"
 #include "pg_rest_event.h"
+#include "pg_rest_worker.h"
 
 #include "pg_rest_listener.h"
 #include "pg_rest_acceptor.h"

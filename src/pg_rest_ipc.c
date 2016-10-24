@@ -22,131 +22,207 @@
 #endif
 
 typedef struct {
-    evutil_socket_t      sockets[2];
-    pgrest_connection_t *conn;
+    pgrest_connection_t         *conn;
+    pgrest_buffer_t             *buffer;
+} pgrest_ipc_conn_t;
+
+typedef struct {
+    evutil_socket_t              sockets[2];
+    pgrest_ipc_conn_t           *iconn;
 } pgrest_ipc_data_t;
 
 static pgrest_ipc_data_t        *pgrest_ipc_data;
-static pgrest_ipc_msg_handler_pt pgrest_ipc_msg_handlers[PGREST_IPC_CMD_MAX - 1];
+static pgrest_ipc_msg_handler_pt pgrest_ipc_msg_handlers[PGREST_IPC_CMD_MAX];
 
 bool 
 pgrest_ipc_send_notify(int dest_worker, ev_uint8_t command)
 {
-    pgrest_connection_t *conn;
+    pgrest_ipc_conn_t *iconn;
+    pgrest_iovec_t     iovec;
 
-    conn = pgrest_ipc_data[dest_worker].conn;
-    if (conn == NULL) {
-        ereport(WARNING, (errmsg(PGREST_PACKAGE " " "could not send notify to "
-                                 "worker %d : channel has been destroyed", 
+    iconn = pgrest_ipc_data[dest_worker].iconn;
+    if (iconn == NULL) {
+        ereport(WARNING, (errmsg(PGREST_PACKAGE " " "could not send notify "
+                                 "to worker %d : channel has been destroyed", 
                                   dest_worker)));
         return false;
     }
 
-    if (pgrest_bufferevent_write(conn->bev, &command, 1) == -1) {
-        ereport(WARNING, (errmsg(PGREST_PACKAGE " " "send notify to worker "
-                                 "%d failed: out of memeory", dest_worker)));
-        return false;
-    }
+    iovec = pgrest_buffer_reserve(iconn->conn->pool, &iconn->buffer, 1);
+   *iovec.base = command;
+    iconn->buffer->size++;
 
-    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d send %d command to worker %d",
-                               pgrest_worker_index, (int) command, dest_worker)));
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d send %d command"
+                              " to worker %d", pgrest_worker_index, 
+                                (int)command, dest_worker)));
+
+    /* schedule the write */
+    (void) pgrest_event_add(iconn->conn->rev, EV_WRITE, 0);
+
     return true;
 }
 
 static bool
 pgrest_ipc_set_handler(int worker_index,
+                       struct event_base *base,
                        evutil_socket_t fd,
-                       bufferevent_data_cb read_handler,
-                       bufferevent_event_cb event_handler)
+                       short events,
+                       event_callback_fn handler)
 {
-    pgrest_connection_t    *conn;
+    pgrest_connection_t *conn;
+    pgrest_ipc_conn_t   *iconn;
+    struct event        *ev;
 
-    conn = pgrest_conn_get(fd, true);
-    if (conn == NULL) {
+    if ((conn = pgrest_conn_get(fd)) == NULL) {
         return false;
     }
 
     conn->channel = 1;
 
-    pgrest_bufferevent_setcb(conn->bev, read_handler, NULL, event_handler, conn);
-    if (read_handler) {
-        pgrest_bufferevent_enable(conn->bev, EV_READ);
+    if ((conn->pool = pgrest_mpool_create()) == NULL) {
+        return false;
     }
 
-    pgrest_ipc_data[worker_index].conn = conn;
+    if((iconn = pgrest_mpool_alloc(conn->pool, 
+                                   sizeof(pgrest_ipc_conn_t))) == NULL) 
+    {
+        return false;
+    }
+
+    iconn->conn = conn;
+    if((iconn->buffer = pgrest_buffer_create(conn->pool, 1024)) == NULL) {
+        return false;
+    }
+
+    ev = events & EV_READ ? conn->rev : conn->wev;
+    if (pgrest_event_assign(ev, base, 
+                            fd, events, handler, iconn) < 0) {
+        return false;
+    }
+
+    pgrest_event_priority_set(ev, pgrest_acceptor_use_mutex ? 1 : 0);
+
+    if (events & EV_READ) {
+        (void) pgrest_event_add(ev, EV_READ, 0); 
+    }
+
+    pgrest_ipc_data[worker_index].iconn = iconn;
 
     return true;
 }
 
 static void
-pgrest_ipc_channel_set_conn(pgrest_connection_t *conn)
+pgrest_ipc_set_conn(pgrest_ipc_conn_t *iconn)
 {
     int i;
 
     for (i = 0; i < pgrest_setting.worker_processes; i++) {
-        if (conn == pgrest_ipc_data[i].conn) {
-            pgrest_ipc_data[i].conn = NULL;
+        if (iconn == pgrest_ipc_data[i].iconn) {
+            pgrest_ipc_data[i].iconn = NULL;
             break;
         }
     }
 }
 
 static void 
-pgrest_ipc_channel_read_handler(struct bufferevent *bev, void *arg)
+pgrest_ipc_read_handler(evutil_socket_t fd, short events, void *arg)
 {
     size_t               i;
-    size_t               result;
-    pgrest_connection_t *conn;
-    ev_uint8_t           command[1024];
+    ssize_t              result;
+    pgrest_ipc_conn_t   *iconn;
+    ev_uint8_t           command[128];
 
-    conn = (pgrest_connection_t *) arg;
+    iconn = (pgrest_ipc_conn_t *) arg;
 
-    result = pgrest_bufferevent_read(conn->bev, command, sizeof(command));
-    for(i = 0; i < result; i++) {
+    for (;;) {
+        result = pgrest_conn_recv(iconn->conn, 
+                                  (char *) command, 
+                                  sizeof(command));
 
-        Assert(command[i] < PGREST_IPC_CMD_MAX);
-
-        debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d received %d command",
-                                   pgrest_worker_index, (int) command[i])));
-
-        if (pgrest_ipc_msg_handlers[command[i]]) {
-            pgrest_ipc_msg_handlers[command[i]]();
+        if (result == 0) {
+            ereport(WARNING, (errmsg(PGREST_PACKAGE " " "recv() returned"
+                                      " zero when receiving notify")));
+            goto fail;
         }
-    }
-}
 
-static void 
-pgrest_ipc_channel_event_handler(struct bufferevent *bev, short events, void *arg)
-{
-    int                  err;
-    pgrest_connection_t *conn;
-    const char          *action;
+        if (result == PGREST_ERROR) {
+            ereport(COMMERROR,
+                    (errcode_for_socket_access(),
+                     errmsg(PGREST_PACKAGE " " "recv() failed: %m")));
+            goto fail;
+        }
 
-    conn = (pgrest_connection_t *) arg;
-    action = events & BEV_EVENT_READING ? "recv":"send";
-
-    if (events & BEV_EVENT_ERROR) {
-        err = EVUTIL_SOCKET_ERROR();
-        if (PGREST_UTIL_ERR_RW_RETRIABLE(err)) {
+        if (result == PGREST_AGAIN) {
             return;
         }
 
+        for(i = 0; i < result; i++) {
+
+            Assert(command[i] < PGREST_IPC_CMD_MAX);
+
+            debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d received"
+                                      " %d command", pgrest_worker_index, 
+                                       (int) command[i])));
+
+            if (pgrest_ipc_msg_handlers[command[i]]) {
+                pgrest_ipc_msg_handlers[command[i]]();
+            }
+        }
+    }
+
+    return;
+
+fail:
+    pgrest_conn_close(iconn->conn);
+    pgrest_ipc_set_conn(iconn);
+}
+
+static void 
+pgrest_ipc_write_handler(evutil_socket_t fd, short events, void *arg)
+{
+    ssize_t              result;
+    pgrest_ipc_conn_t   *iconn;
+    pgrest_buffer_t     *buf;
+
+    iconn = (pgrest_ipc_conn_t *) arg;
+    buf = iconn->buffer;
+
+    if (buf->size == 0) {
+        (void) pgrest_event_del(iconn->conn->wev, EV_WRITE);
+        return;
+    }
+
+    result = pgrest_conn_send(iconn->conn, buf->pos, buf->size);
+
+    if (result == 0) {
+        ereport(WARNING, (errmsg(PGREST_PACKAGE " " "send() returned"
+                                  " zero when send notify")));
+        goto schedule;
+    }
+
+    if (result == PGREST_AGAIN) {
+        goto schedule;
+    }
+
+    if (result == PGREST_ERROR) {
         ereport(COMMERROR,
                 (errcode_for_socket_access(),
-                 errmsg(PGREST_PACKAGE " " "could not %s notify: %m", action)));
-
-        pgrest_conn_close(conn);
-        pgrest_ipc_channel_set_conn(conn);
-        return;
+                 errmsg(PGREST_PACKAGE " " "send() failed: %m")));
+        goto fail;
     }
 
-    if (events & BEV_EVENT_EOF) {
-        ereport(WARNING, (errmsg(PGREST_PACKAGE " " "recv() returned "
-                                 "zero when receiving notify")));
-        pgrest_conn_close(conn);
-        pgrest_ipc_channel_set_conn(conn);
-        return;
+    pgrest_buffer_consume(buf, result);
+
+schedule:
+    if (buf->size) {
+        (void) pgrest_event_add(iconn->conn->rev, EV_WRITE, 0);
     }
+
+    return;
+
+fail:
+    pgrest_conn_close(iconn->conn);
+    pgrest_ipc_set_conn(iconn);
 }
 
 void
@@ -165,7 +241,7 @@ pgrest_ipc_close_channel(evutil_socket_t *sockets)
 }
 
 static bool
-pgrest_ipc_worker_init(void *data)
+pgrest_ipc_worker_init(void *data, void *base)
 {
     int                 i;
     evutil_socket_t    *sockets;
@@ -179,44 +255,47 @@ pgrest_ipc_worker_init(void *data)
         sockets = pgrest_ipc_data[i].sockets;
         evutil_closesocket(sockets[1]);
 
-        if (pgrest_ipc_set_handler(i,
-                                   sockets[0], 
-                                   NULL, 
-                                   pgrest_ipc_channel_event_handler) == false) {
+        if (!pgrest_ipc_set_handler(i,
+                                    base,
+                                    sockets[0], 
+                                    EV_WRITE, 
+                                    pgrest_ipc_write_handler)) 
+        {
             return false;
         }
-
     }
 
     sockets = pgrest_ipc_data[pgrest_worker_index].sockets;
     evutil_closesocket(sockets[0]);
 
-    if (pgrest_ipc_set_handler(pgrest_worker_index,
-                               sockets[1], 
-                               pgrest_ipc_channel_read_handler, 
-                               pgrest_ipc_channel_event_handler) == false) {
+    if (!pgrest_ipc_set_handler(pgrest_worker_index,
+                                base,
+                                sockets[1], 
+                                EV_READ | EV_PERSIST, 
+                                pgrest_ipc_read_handler)) 
+    {
         return false;
     }
 
-    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d initialize ipc "
-                              "channel successfull", pgrest_worker_index)));
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d initialize ipc"
+                              " channel successfull", pgrest_worker_index)));
 
     return true;
 }
 
 static bool
-pgrest_ipc_worker_exit(void *data)
+pgrest_ipc_worker_exit(void *data, void *base)
 {
     int                  i;
-    pgrest_connection_t *conn;
+    pgrest_ipc_conn_t   *iconn;
 
-    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d ipc_channel_exit",
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d ipc_exit",
                                pgrest_worker_index)));
 
     for (i = 0; i < pgrest_setting.worker_processes; i++) {
-        conn = pgrest_ipc_data[i].conn;
-        if (conn) {
-            pgrest_conn_close(conn);
+        iconn = pgrest_ipc_data[i].iconn;
+        if (iconn) {
+            pgrest_conn_close(iconn->conn);
         }
     }
 
@@ -249,31 +328,33 @@ pgrest_ipc_channel_init(int worker_processes)
     for(i = 0; i < worker_processes; i++) {
         sockets = pgrest_ipc_data[i].sockets;
 
-        if (evutil_socketpair(LOCAL_SOCKETPAIR_AF, SOCK_STREAM, 0, sockets) == -1) {
-            goto error;
-		}
+        if (evutil_socketpair(LOCAL_SOCKETPAIR_AF, 
+                              SOCK_STREAM, 0, sockets) == -1) {
+            prompt = "socketpair()";
+            goto fail;
+        }
 
         if (evutil_make_socket_nonblocking(sockets[0]) == -1) {
             prompt = "nonblocking";
-            goto fail;
+            goto error;
         }
 
         if (evutil_make_socket_nonblocking(sockets[1]) == -1) {
             prompt = "nonblocking";
-            goto fail;
+            goto error;
         }
 
         if (evutil_make_socket_closeonexec(sockets[0]) == -1) {
             prompt = "closeonexec";
-            goto fail;
+            goto error;
         }
 
         if (evutil_make_socket_closeonexec(sockets[1]) == -1) {
             prompt = "closeonexec";
-            goto fail;
+            goto error;
         }
 
-        pgrest_ipc_data[i].conn = NULL;
+        pgrest_ipc_data[i].iconn = NULL;
     }
 
     debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "postmaster initialize ipc "
@@ -281,23 +362,18 @@ pgrest_ipc_channel_init(int worker_processes)
     return true;
 
 error:
-    ereport(LOG,
-            (errcode_for_socket_access(),
-             errmsg(PGREST_PACKAGE " " "socketpair() failed : %m")));
-    return false;
-
+    pgrest_ipc_close_channel(sockets);
 fail:
     ereport(LOG,
             (errcode_for_socket_access(),
-             errmsg(PGREST_PACKAGE " " "make socket %s failed: %m", prompt)));
-    pgrest_ipc_close_channel(sockets);
+             errmsg(PGREST_PACKAGE " " "%s failed: %m", prompt)));
     return false;
 }
 
 static void
-pgrest_ipc_fini1(int status, Datum arg)
+pgrest_ipc_fini2(int status, Datum arg)
 {
-    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "ipc fini1 %d", 
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "ipc fini2 %d", 
                                DatumGetInt32(arg))));
 
     pgrest_ipc_fini(DatumGetInt32(arg));
@@ -316,7 +392,8 @@ pgrest_ipc_init(int worker_processes)
                            "ipc channel",
                            (void *) (intptr_t) worker_processes,
                            false);
-    on_proc_exit(pgrest_ipc_fini1, worker_processes);
+
+    on_proc_exit(pgrest_ipc_fini2, worker_processes);
 }
 
 void

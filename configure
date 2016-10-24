@@ -755,7 +755,6 @@ with_libxml
 enable_urandom
 with_openssl
 enable_debug
-enable_malloc_replacement
 enable_profile
 enable_coverage
 '
@@ -1387,9 +1386,6 @@ Optional Features:
   --disable-libtool-lock  avoid locking (might break parallel builds)
   --disable-urandom       Don't use /dev/urandom to seed the hash function
   --enable-debug          Enable verbose debugging messages
-  --disable-malloc-replacement
-                          disable support for replacing the memory mgt
-                          functions
   --enable-profile        Enable pg_rest profiling messages
   --enable-coverage       Enable build with coverage testing instrumentation
 
@@ -2330,7 +2326,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
-ac_config_headers="$ac_config_headers include/pg_rest_header.h jansson-2.8/jansson_private_config.h"
+ac_config_headers="$ac_config_headers include/pg_rest_header.h jansson/jansson_private_config.h"
 
 
 
@@ -12536,7 +12532,7 @@ ac_res=$ac_cv_search_SSL_new
 if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
   USE_OPENSSL=yes
-	    OPENSSL_LDFLAGS="$LIBS -lcrypto -levent_openssl "
+	    OPENSSL_LDFLAGS="$LIBS -lcrypto "
 
 $as_echo "#define HAVE_OPENSSL 1" >>confdefs.h
 
@@ -12857,21 +12853,6 @@ _ACEOF
 
 
 
-# Check whether --enable-malloc-replacement was given.
-if test "${enable_malloc_replacement+set}" = set; then :
-  enableval=$enable_malloc_replacement; PGREST_MM_REPLACE=0
-else
-  PGREST_MM_REPLACE=1
-fi
-
-
-
-cat >>confdefs.h <<_ACEOF
-#define PGREST_MM_REPLACE $PGREST_MM_REPLACE
-_ACEOF
-
-
-
 # Check whether --enable-profile was given.
 if test "${enable_profile+set}" = set; then :
   enableval=$enable_profile; PGREST_PROFILE=1
@@ -12924,7 +12905,7 @@ SHLIB_LINK="$PGSQL_LDFLAGS $EVENT_LDFLAGS $XML2_LDFLAGS $OPENSSL_LDFLAGS"
 
 
 
-ac_config_files="$ac_config_files Makefile jansson-2.8/src/jansson_config.h pg_rest.control"
+ac_config_files="$ac_config_files Makefile jansson/src/jansson_config.h pg_rest.control"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -13906,10 +13887,10 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "include/pg_rest_header.h") CONFIG_HEADERS="$CONFIG_HEADERS include/pg_rest_header.h" ;;
-    "jansson-2.8/jansson_private_config.h") CONFIG_HEADERS="$CONFIG_HEADERS jansson-2.8/jansson_private_config.h" ;;
+    "jansson/jansson_private_config.h") CONFIG_HEADERS="$CONFIG_HEADERS jansson/jansson_private_config.h" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
-    "jansson-2.8/src/jansson_config.h") CONFIG_FILES="$CONFIG_FILES jansson-2.8/src/jansson_config.h" ;;
+    "jansson/src/jansson_config.h") CONFIG_FILES="$CONFIG_FILES jansson/src/jansson_config.h" ;;
     "pg_rest.control") CONFIG_FILES="$CONFIG_FILES pg_rest.control" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
@@ -15162,5 +15143,3 @@ $as_echo "  Debug support:        ${PGREST_DEBUG}" >&6; }
 $as_echo "  Profiling support:    ${PGREST_PROFILE}" >&6; }
 { $as_echo "$as_me:${as_lineno-$LINENO}: result:   Coverage testing:     ${PGREST_COVERAGE}" >&5
 $as_echo "  Coverage testing:     ${PGREST_COVERAGE}" >&6; }
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result:   Malloc replacement:   ${PGREST_MM_REPLACE}" >&5
-$as_echo "  Malloc replacement:   ${PGREST_MM_REPLACE}" >&6; }

@@ -32,7 +32,7 @@ pgrest_listener_create(void *sockaddr, socklen_t socklen)
     listener->sockaddr = sa;
     listener->socklen = socklen;
 
-    (void) pgrest_util_inet_ntop(sa, socklen, text, PGREST_SOCKADDR_STRLEN, true);
+    (void) pgrest_inet_ntop(sa, socklen, text, PGREST_SOCKADDR_STRLEN, true);
     listener->addr_text = pstrdup(text);
 
     switch (listener->sockaddr->sa_family) {
@@ -89,10 +89,10 @@ pgrest_listener_open(List *listeners)
         fd = socket(listener->sockaddr->sa_family, listener->type, 0);
 
         if (fd == (evutil_socket_t) -1) {
-			ereport(LOG,
-					(errcode_for_socket_access(),
-					 errmsg(PGREST_PACKAGE " " "could not create %s socket: %m",
-							listener->addr_text)));
+            ereport(LOG,
+                    (errcode_for_socket_access(),
+                     errmsg(PGREST_PACKAGE " " "could not create %s socket: %m",
+                            listener->addr_text)));
             return false;
         }
 
@@ -362,7 +362,7 @@ pgrest_listener_close(List *listeners)
 
         if (conn) {
             /* worker only  */
-            (void) pgrest_event_del(listener->ev, EV_READ);
+            (void) pgrest_event_del(conn->rev, EV_READ);
             pgrest_conn_free(conn);
             conn->fd = (evutil_socket_t) -1;
         }
@@ -395,7 +395,7 @@ pgrest_listener_resume(void)
     foreach(cell, pgrest_listener_listeners) {
         listener = lfirst(cell);
         conn = listener->connection;
-        ev = listener->ev;
+        ev = conn->rev;
 
         if (conn == NULL || ev == NULL) {
             continue;
@@ -420,7 +420,7 @@ pgrest_listener_pause(bool all)
     foreach(cell, pgrest_listener_listeners) {
         listener = lfirst(cell);
         conn = listener->connection;
-        ev = listener->ev;
+        ev = conn->rev;
 
         if (conn == NULL || ev == NULL) {
             continue;
@@ -440,7 +440,7 @@ pgrest_listener_pause(bool all)
 }
 
 static bool
-pgrest_listener_worker_init(void *data)
+pgrest_listener_worker_init(void *data, void *base)
 {
     ListCell            *cell;
     pgrest_listener_t   *listener;
@@ -451,7 +451,7 @@ pgrest_listener_worker_init(void *data)
     foreach(cell, listeners) {
         listener = lfirst(cell);
 
-        conn = pgrest_conn_get(listener->fd, false);
+        conn = pgrest_conn_get(listener->fd);
         if (conn == NULL) {
             return false;
         }
@@ -460,35 +460,28 @@ pgrest_listener_worker_init(void *data)
         conn->listener = listener;
 
         listener->connection = conn;
-        listener->ev = pgrest_event_new(pgrest_worker_event_base,
-                                 listener->fd,
-                                 EV_READ | EV_PERSIST,
-                                 pgrest_acceptor_accept_handler,
-                                 conn);
-
-        if (listener->ev == NULL) {
-            ereport(WARNING, (errmsg(PGREST_PACKAGE " " "worker %d create event "
-                                     "object failed", pgrest_worker_index)));
+        if (pgrest_event_assign(conn->rev, base, 
+                                conn->fd, EV_READ | EV_PERSIST, 
+                                pgrest_acceptor_accept_handler, conn) < 0) 
+        {
             return false;
         }
 
+        pgrest_event_priority_set(conn->rev, 0);
 #ifdef HAVE_REUSEPORT
         if (listener->reuseport) {
-            pgrest_event_priority_set(listener->ev, 
-                                      pgrest_acceptor_use_mutex ? 1 : 0);
-            if (!pgrest_event_add(listener->ev, EV_READ, 0)) {
+            if (!pgrest_event_add(conn->rev, EV_READ, 0)) {
                 return false;
             }
+
             continue;
         }
 #endif
-        pgrest_event_priority_set(listener->ev, 0);
-
         if (pgrest_acceptor_use_mutex) {
             continue;
         }
 
-        if (!pgrest_event_add(listener->ev, EV_READ, 0)) {
+        if (!pgrest_event_add(conn->rev, EV_READ, 0)) {
             return false;
         }
     }
@@ -497,7 +490,7 @@ pgrest_listener_worker_init(void *data)
 }
 
 static bool
-pgrest_listener_worker_exit(void *data)
+pgrest_listener_worker_exit(void *data, void *base)
 {
     List       *listeners = data;
 
@@ -590,7 +583,7 @@ pgrest_listener_info_print(void)
 }
 
 static void
-pgrest_listener_fini1(int status, Datum arg)
+pgrest_listener_fini2(int status, Datum arg)
 {
     pgrest_listener_fini();
 }
@@ -616,7 +609,7 @@ pgrest_listener_init(void)
                            pgrest_listener_listeners, 
                            false);
 
-    on_proc_exit(pgrest_listener_fini1, 0);
+    on_proc_exit(pgrest_listener_fini2, 0);
 #if PGREST_DEBUG
     pgrest_listener_info_print();
 #endif

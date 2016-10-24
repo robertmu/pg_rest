@@ -147,13 +147,6 @@ pgrest_guc_init(char *setting)
 
     EmitWarningsOnPlaceholders(PGREST_PACKAGE);
 
-    pgrest_array_init(&s->conf_http_servers,
-                      4, 
-                      sizeof(pgrest_conf_http_server_t));
-    pgrest_array_init(&s->conf_listeners, 
-                      4, 
-                      sizeof(pgrest_conf_listener_t));
-
     /* parse configure file */
     if(!pgrest_conf_parse(s, s->configure_file)) {
         ereport(ERROR,

@@ -16,7 +16,7 @@
 typedef void (*pgrest_ipc_msg_handler_pt) (void);
 
 typedef enum {
-    PGREST_IPC_CMD_HTTP_PUSH_CHECK_ = 0,
+    PGREST_IPC_CMD_HTTP_PUSH_CHECK = 0,
     PGREST_IPC_CMD_HTTP_PUSH_DELETE,
     PGREST_IPC_CMD_DB_PUSH_CHECK,
     PGREST_IPC_CMD_MAX

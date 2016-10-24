@@ -20,7 +20,7 @@ typedef struct {
     pgrest_uint_t   capacity;
 } pgrest_array_t;
 
-#define	pgrest_array_init(array, n, s)    \
+#define pgrest_array_init(array, n, s)    \
 do {                                      \
     (array)->size = 0;                    \
     (array)->capacity = (n);              \
