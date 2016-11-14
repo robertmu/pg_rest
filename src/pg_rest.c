@@ -55,6 +55,8 @@ _PG_init(void)
     /* os init */
     pgrest_os_init();
 
+    pgrest_http_setup_configurators();
+
     /* initialize guc variables */
     pgrest_guc_init((char *) &pgrest_setting);
 

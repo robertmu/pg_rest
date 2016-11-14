@@ -15,17 +15,9 @@
 #include "pg_rest_config.h"
 #include "pg_rest_core.h"
 
-struct pgrest_conf_command_s {
-    const char            *name;
-    size_t                 offset;
-    int                    min_val;
-    int                    max_val;
-    pgrest_conf_create_pt  create_conf;
-    pgrest_conf_set_pt     set;
-};
-
 static void *pgrest_conf_setting_create(void *parent);
 static void *pgrest_conf_http_server_create(void *parent);
+static void *pgrest_conf_http_path_create(void *parent);
 static void *pgrest_conf_listener_create(void *parent);
 static void  pgrest_conf_parse_object(const char *name, 
                                  json_t *jelem, 
@@ -80,6 +72,9 @@ static void  pgrest_conf_reuse_set(pgrest_conf_command_t *cmd,
 static void  pgrest_conf_ssl_set(pgrest_conf_command_t *cmd, 
                                  void *val, 
                                  void *parent);
+static void  pgrest_conf_http_path_set(pgrest_conf_command_t *cmd, 
+                                 void *val, 
+                                 void *parent);
 
 static pgrest_conf_command_t  pgrest_conf_static_cmds[] = {
 
@@ -87,245 +82,245 @@ static pgrest_conf_command_t  pgrest_conf_static_cmds[] = {
       0,
       0,
       0,
-      pgrest_conf_setting_create,
-      NULL },
+      PGREST_CONF_OBJECT,
+      pgrest_conf_setting_create },
 
     { "worker",
       0,
       0,
       0,
-      NULL,
+      PGREST_CONF_OBJECT,
       NULL },
 
     { "worker_processes",
       offsetof(pgrest_setting_t, worker_processes),
       1,
       PGREST_MAX_WORKERS,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set },
 
     { "worker_priority",
       offsetof(pgrest_setting_t, worker_priority),
       -20,
       20,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set },
 
     { "worker_nofile",
       offsetof(pgrest_setting_t, worker_nofile),
       -1,
       65535,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set },
 
     { "worker_connections",
       offsetof(pgrest_setting_t, worker_noconn),
       1,
       65535,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set },
 
     { "accept",
       0,
       0,
       0,
-      NULL,
+      PGREST_CONF_OBJECT,
       NULL },
 
     { "accept_mutex",
       offsetof(pgrest_setting_t, acceptor_mutex),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_bool_set },
 
     { "accept_mutex_delay",
       offsetof(pgrest_setting_t, acceptor_mutex_delay),
       500,
       600000,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set },
 
     { "multi_accept",
       offsetof(pgrest_setting_t, acceptor_multi_accept),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_bool_set },
 
     { "http",
       0,
       0,
       0,
-      NULL,
+      PGREST_CONF_OBJECT,
       NULL },
 
     { "tcp_nopush",
       offsetof(pgrest_setting_t, http_tcp_nopush),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_bool_set },
 
     { "keepalive_timeout",
       offsetof(pgrest_setting_t, http_keepalive_timeout),
       1000,
       3600000,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set },
 
     { "temp_buffer_path",
       offsetof(pgrest_setting_t, temp_buffer_path),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_tbpath_set },
 
     { "server",
       0,
       0,
       0,
-      pgrest_conf_http_server_create,
-      NULL },
+      PGREST_CONF_OBJECT,
+      pgrest_conf_http_server_create },
 
     { "listen",
       0,
       0,
       0,
-      pgrest_conf_listener_create,
-      NULL },
+      PGREST_CONF_OBJECT,
+      pgrest_conf_listener_create },
 
     { "address",
       offsetof(pgrest_conf_listener_t, sockaddr),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_address_set },
 
     { "default_server",
       offsetof(pgrest_conf_listener_t, default_server),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_bool_set },
 
     { "bind",
       offsetof(pgrest_conf_listener_t, bind),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_bool_set2 },
 
     { "backlog",
       offsetof(pgrest_conf_listener_t, backlog),
       1,
       65535,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set2 },
 
     { "sndbuf",
       offsetof(pgrest_conf_listener_t, sndbuf),
       -1,
       65535,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set2 },
 
     { "rcvbuf",
       offsetof(pgrest_conf_listener_t, rcvbuf),
       -1,
       65535,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set2 },
 
     { "so_keepalive",
       offsetof(pgrest_conf_listener_t, so_keepalive),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_keepalive_set },
 
     { "tcp_keepidle",
       offsetof(pgrest_conf_listener_t, tcp_keepidle),
       0,
       INT_MAX,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_keepalive_opt_set },
 
     { "tcp_keepintvl",
       offsetof(pgrest_conf_listener_t, tcp_keepintvl),
       0,
       INT_MAX,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_keepalive_opt_set },
 
     { "tcp_keepcnt",
       offsetof(pgrest_conf_listener_t, tcp_keepcnt),
       0,
       INT_MAX,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_keepalive_opt_set },
 
     { "ipv6_only",
       offsetof(pgrest_conf_listener_t, ipv6only),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_ipv6only_set },
 
     { "accept_filter",
       offsetof(pgrest_conf_listener_t, accept_filter),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_afilter_set },
 
     { "deferred_accept",
       offsetof(pgrest_conf_listener_t, deferred_accept),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_deferred_set },
 
     { "setfib",
       offsetof(pgrest_conf_listener_t, setfib),
       -1,
       INT_MAX,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set2 },
 
     { "fastopen",
       offsetof(pgrest_conf_listener_t, fastopen),
       -1,
       INT_MAX,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set2 },
 
     { "reuseport",
       offsetof(pgrest_conf_listener_t, reuseport),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_reuse_set },
 
     { "ssl",
       offsetof(pgrest_conf_listener_t, ssl),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_ssl_set },
 
     { "http2",
       offsetof(pgrest_conf_listener_t, http2),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_bool_set },
 
     { "server_name",
       offsetof(pgrest_conf_http_server_t, server_name),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_server_name_set },
 
 #ifdef HAVE_OPENSSL
@@ -333,28 +328,28 @@ static pgrest_conf_command_t  pgrest_conf_static_cmds[] = {
       offsetof(pgrest_conf_http_server_t, ssl_certificate),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_string_set },
 
     { "ssl_certificate_key",
       offsetof(pgrest_conf_http_server_t, ssl_certificate_key),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_string_set },
 
     { "ssl_session_cache",
       offsetof(pgrest_conf_http_server_t, ssl_session_cache),
       0,
       0,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_bool_set },
 
     { "ssl_session_timeout",
       offsetof(pgrest_conf_http_server_t, ssl_session_timeout),
       60000,
       3600000,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set },
 #endif
 
@@ -362,10 +357,31 @@ static pgrest_conf_command_t  pgrest_conf_static_cmds[] = {
       offsetof(pgrest_conf_http_server_t, client_header_timeout),
       1000,
       3600000,
-      NULL,
+      PGREST_CONF_SCALAR,
       pgrest_conf_integer_set },
 
-    { NULL, 0, 0, 0, NULL, NULL }
+    { "location",
+      0,
+      0,
+      0,
+      PGREST_CONF_OBJECT,
+      pgrest_conf_http_path_create },
+
+    { "path",
+      0,
+      0,
+      0,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_http_path_set },
+
+    { "handlers",
+      0,
+      0,
+      0,
+      PGREST_CONF_OBJECT,
+      NULL },
+
+    { NULL, 0, 0, 0, 0, NULL }
 };
 static List              *pgrest_conf_dynamic_cmds = NIL;
 static pgrest_setting_t  *pgrest_setting_private;
@@ -651,6 +667,34 @@ pgrest_conf_server_name_set(pgrest_conf_command_t *cmd, void *val, void *parent)
     pfree(raw_string);
 }
 
+static void  
+pgrest_conf_http_path_set(pgrest_conf_command_t *cmd, void *val, void *parent)
+{
+    pgrest_conf_http_path_t   *conf_http_path = parent;
+    char                      *value = val;
+    pgrest_conf_http_server_t *conf_http_server;
+
+    if (!value || value[0] == '\0') {
+        ereport(ERROR, 
+                (errmsg(PGREST_PACKAGE " " "invalid value for directive"
+                         " \"%s\": path must be not null", cmd->name)));
+    }
+
+    /* need add conf_http_path to conf_http_server */
+    conf_http_server = conf_http_path->conf_server;
+
+    conf_http_path->path.base = (unsigned char *)pstrdup(value);
+    conf_http_path->path.len = strlen(value);
+
+    if (!pgrest_rtree_add(conf_http_server->paths, 
+                          conf_http_path->path, 
+                          conf_http_path)) 
+    {
+        ereport(ERROR, (errmsg(PGREST_PACKAGE " " "add path: \"%s\""
+                               " to path router failed", value)));
+    }
+}
+
 static void *
 pgrest_conf_setting_create(void *parent)
 {
@@ -667,10 +711,10 @@ pgrest_conf_setting_create(void *parent)
             PGREST_BUFFER_DTEMP_PATH);
 
     pgrest_array_init(&pgrest_setting_private->conf_http_servers,
-                      4, 
+                      2, 
                       sizeof(pgrest_conf_http_server_t));
     pgrest_array_init(&pgrest_setting_private->conf_listeners, 
-                      4, 
+                      2, 
                       sizeof(pgrest_conf_listener_t));
 
     return pgrest_setting_private;
@@ -696,6 +740,7 @@ pgrest_conf_http_server_create(void *parent)
     pgrest_array_init(&conf_http_server->server_names, 
                       2, 
                       sizeof(pgrest_http_server_name_t));
+    conf_http_server->paths = pgrest_rtree_create();
 
     conf_http_server->listen = 0;
     conf_http_server->conf_main = setting;
@@ -748,6 +793,20 @@ pgrest_conf_listener_create(void *parent)
     return conf_listener;
 }
 
+static void *
+pgrest_conf_http_path_create(void *parent)
+{
+    pgrest_conf_http_path_t   *conf_http_path;
+
+    conf_http_path = palloc0(sizeof(pgrest_conf_http_path_t));
+
+    pgrest_array_init(&conf_http_path->handlers, 2, sizeof(void *));
+    pgrest_array_init(&conf_http_path->filters, 2, sizeof(void *));
+    conf_http_path->conf_server = parent;
+
+    return conf_http_path;
+}
+
 static pgrest_conf_command_t *
 pgrest_conf_cmd_find(const char *name)
 {
@@ -775,10 +834,18 @@ static inline void
 pgrest_conf_parse_type(const char *name, void *val, void *parent)
 {
     pgrest_conf_command_t       *cmd;
+    pgrest_conf_set_pt           handler;
 
     cmd = pgrest_conf_cmd_find(name);
-    Assert(cmd->set);
-    cmd->set(cmd, val, parent);
+    Assert(cmd->handler);
+
+    if (!(cmd->flags & PGREST_CONF_SCALAR)) {
+        ereport(ERROR, (errmsg(PGREST_PACKAGE " " "directive \"%s\""
+                               " must be an object", cmd->name)));
+    }
+
+    handler = cmd->handler;
+    handler(cmd, val, parent);
 }
 
 static void 
@@ -824,12 +891,18 @@ pgrest_conf_parse_object(const char *name, json_t *jelem, void *parent)
     json_t                 *jnode;
     const char             *elem_name;
     void                   *object;
+    pgrest_conf_create_pt   handler;
 
     cmd = pgrest_conf_cmd_find(name);
-    object = parent;
+    if (!(cmd->flags & PGREST_CONF_OBJECT)) {
+        ereport(ERROR, (errmsg(PGREST_PACKAGE " " "directive \"%s\""
+                                " must be scalar", cmd->name)));
+    }
 
-    if (cmd->create_conf) {
-        object = cmd->create_conf(parent);
+    object = parent;
+    if (cmd->handler) {
+        handler = cmd->handler;
+        object = handler(parent);
     }
 
     for (iter = json_object_iter(jelem); 
@@ -932,9 +1005,9 @@ pgrest_conf_parse_iner(json_t *jroot)
     return result;
 }
 
-void 
-pgrest_conf_def_cmd(const char *name, size_t offset, int min_val, int max_val,
-                    pgrest_conf_create_pt create_conf, pgrest_conf_set_pt set)
+static void 
+pgrest_conf_def_cmd_(const char *name, size_t offset, int min_val,
+                     int max_val, int flags, void *handler)
 {
     pgrest_conf_command_t *cmd;
 
@@ -944,10 +1017,24 @@ pgrest_conf_def_cmd(const char *name, size_t offset, int min_val, int max_val,
     cmd->offset = offset;
     cmd->min_val = min_val;
     cmd->max_val = max_val;
-    cmd->create_conf = create_conf;
-    cmd->set = set;
+    cmd->flags = flags;
+    cmd->handler = handler;
 
     pgrest_conf_dynamic_cmds = lappend(pgrest_conf_dynamic_cmds, cmd);
+}
+
+void 
+pgrest_conf_def_cmd(const char *name, size_t offset, int min_val,
+                    int max_val, pgrest_conf_set_pt handler)
+{
+    pgrest_conf_def_cmd_(name, offset, min_val, max_val,
+                         PGREST_CONF_SCALAR, handler);
+}
+
+void 
+pgrest_conf_def_obj(const char *name, pgrest_conf_create_pt handler)
+{
+    pgrest_conf_def_cmd_(name, 0, 0, 0, PGREST_CONF_OBJECT, handler);
 }
 
 bool 

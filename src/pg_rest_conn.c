@@ -135,7 +135,7 @@ pgrest_conn_close(pgrest_connection_t *conn)
 }
 
 ssize_t
-pgrest_conn_recv(pgrest_connection_t *conn, char *buf, size_t size)
+pgrest_conn_recv(pgrest_connection_t *conn, unsigned char *buf, size_t size)
 {
     ssize_t n;
     int     err;
@@ -160,7 +160,7 @@ pgrest_conn_recv(pgrest_connection_t *conn, char *buf, size_t size)
 }
 
 ssize_t
-pgrest_conn_send(pgrest_connection_t *conn, char *buf, size_t size)
+pgrest_conn_send(pgrest_connection_t *conn, unsigned char *buf, size_t size)
 {
     ssize_t n;
     int     err;

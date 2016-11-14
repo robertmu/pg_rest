@@ -73,7 +73,7 @@ pgrest_connection_t *pgrest_conn_get(evutil_socket_t fd);
 void pgrest_conn_free(pgrest_connection_t *conn);
 void pgrest_conn_close(pgrest_connection_t *conn);
 void pgrest_conn_reusable(pgrest_connection_t *conn, int reusable);
-ssize_t pgrest_conn_recv(pgrest_connection_t *conn, char *buf, size_t size);
-ssize_t pgrest_conn_send(pgrest_connection_t *conn, char *buf, size_t size);
+ssize_t pgrest_conn_recv(pgrest_connection_t *conn, unsigned char *buf, size_t size);
+ssize_t pgrest_conn_send(pgrest_connection_t *conn, unsigned char *buf, size_t size);
 
 #endif /* PG_REST_CONN_H_ */

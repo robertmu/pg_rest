@@ -63,11 +63,11 @@ pgrest_ipc_send_notify(int dest_worker, ev_uint8_t command)
 }
 
 static bool
-pgrest_ipc_set_handler(int worker_index,
-                       struct event_base *base,
-                       evutil_socket_t fd,
-                       short events,
-                       event_callback_fn handler)
+pgrest_ipc_setup_handler(int worker_index,
+                         struct event_base *base,
+                         evutil_socket_t fd,
+                         short events,
+                         event_callback_fn handler)
 {
     pgrest_connection_t *conn;
     pgrest_ipc_conn_t   *iconn;
@@ -136,7 +136,7 @@ pgrest_ipc_read_handler(evutil_socket_t fd, short events, void *arg)
 
     for (;;) {
         result = pgrest_conn_recv(iconn->conn, 
-                                  (char *) command, 
+                                  (unsigned char *) command, 
                                   sizeof(command));
 
         if (result == 0) {
@@ -226,7 +226,7 @@ fail:
 }
 
 void
-pgrest_ipc_set_msg_handler(pgrest_ipc_cmd_e command, 
+pgrest_ipc_setup_msg_handler(pgrest_ipc_cmd_e command, 
                            pgrest_ipc_msg_handler_pt handler)
 {
     Assert(command < PGREST_IPC_CMD_MAX);
@@ -255,7 +255,7 @@ pgrest_ipc_worker_init(void *data, void *base)
         sockets = pgrest_ipc_data[i].sockets;
         evutil_closesocket(sockets[1]);
 
-        if (!pgrest_ipc_set_handler(i,
+        if (!pgrest_ipc_setup_handler(i,
                                     base,
                                     sockets[0], 
                                     EV_WRITE, 
@@ -268,7 +268,7 @@ pgrest_ipc_worker_init(void *data, void *base)
     sockets = pgrest_ipc_data[pgrest_worker_index].sockets;
     evutil_closesocket(sockets[0]);
 
-    if (!pgrest_ipc_set_handler(pgrest_worker_index,
+    if (!pgrest_ipc_setup_handler(pgrest_worker_index,
                                 base,
                                 sockets[1], 
                                 EV_READ | EV_PERSIST, 

@@ -16,6 +16,9 @@
 #include "pg_rest_core.h"
 #include "pg_rest_http.h"
 
+#include "pg_rest_http_postgres.h"
+#include "pg_rest_http_push_stream.h"
+
 static pgrest_array_t *pgrest_http_ports = NULL;
 
 static pgrest_listener_t *
@@ -82,7 +85,7 @@ pgrest_http_add_server(pgrest_conf_http_server_t *conf_server,
     pgrest_conf_http_server_t **server;
 
     if (addr->servers.elts == NULL) {
-        pgrest_array_init(&addr->servers, 4, sizeof(pgrest_conf_http_server_t *));
+        pgrest_array_init(&addr->servers, 2, sizeof(pgrest_conf_http_server_t *));
     } else {
         server = addr->servers.elts;
         for (i = 0; i < addr->servers.size; i++) {
@@ -110,7 +113,7 @@ pgrest_http_add_address(pgrest_conf_http_server_t *conf_server,
     pgrest_http_server_name_t *sn;
 
     if (port->addrs.elts == NULL) {
-        pgrest_array_init(&port->addrs, 4, sizeof(pgrest_http_conf_addr_t));
+        pgrest_array_init(&port->addrs, 2, sizeof(pgrest_http_conf_addr_t));
     }
 
     /* TODO  */
@@ -482,17 +485,45 @@ pgrest_http_optimize_servers(pgrest_array_t *ports)
     return true;
 }
 
-void pgrest_http_init(pgrest_setting_t *setting)
+static void
+pgrest_http_pathtree_waler(pgrest_conf_http_path_t *path)
+{
+    int                       i;
+    pgrest_http_handler_t   **handler;
+
+    if (path) {
+        handler = path->handlers.elts;
+        for (i = 0; i < path->handlers.size; i++) {
+            if (handler[i]->init(handler[i]) == false) {
+                ereport(ERROR, (errmsg(PGREST_PACKAGE " " "initialize http "
+                                       "\"%s\" failed", handler[i]->name)));
+            }
+        }
+    }
+}
+
+void 
+pgrest_http_setup_configurators(void)
+{
+    /* http handler&filter configure handler*/
+    pgrest_http_postgres_conf_register();
+    pgrest_http_push_stream_conf_register();
+}
+
+void 
+pgrest_http_init(pgrest_setting_t *setting)
 {
     pgrest_uint_t              i;
     pgrest_conf_http_server_t *conf_server;
     pgrest_conf_listener_t    *conf_listener;
 
-    pgrest_http_ports = pgrest_array_create(2, sizeof(pgrest_http_conf_port_t));
-
-    conf_listener = setting->conf_listeners.elts;
     conf_server = setting->conf_http_servers.elts;
+    for (i = 0; i < setting->conf_http_servers.size; i++) {
+        pgrest_rtree_walker(conf_server[i].paths, pgrest_http_pathtree_waler);
+    }
 
+    pgrest_http_ports = pgrest_array_create(2, sizeof(pgrest_http_conf_port_t));
+    conf_listener = setting->conf_listeners.elts;
     for (i = 0; i < setting->conf_listeners.size; i++) {
         if(!pgrest_http_add_listen(&conf_server[i], 
                                    &conf_listener[i],

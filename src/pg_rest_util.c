@@ -169,3 +169,23 @@ pgrest_util_ncpu(void)
     return (int)si.dwNumberOfProcessors;
 #endif
 }
+
+int
+pgrest_util_count_params(pgrest_string_t path)
+{
+    int i, n = 0;
+
+    for (i = 0; i< path.len; i++) {
+        if (path.base[i] != ':' && path.base[i] != '*') {
+            continue;
+        }
+
+        n++;
+    }
+
+    if (n >= 255) {
+        n = 255;
+    }
+
+    return n;
+}

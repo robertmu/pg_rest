@@ -17,10 +17,10 @@
 
 #define DEFAUlT_PGREST_LISTEN_BACKLOG          512
 #define DEFAULT_PGREST_SOCKET_DIR              "/var/run"
-#define PGREST_UNIXSOCK_PATH(path, port, sockdir)               \
-        snprintf(path, sizeof(path), "%s/.s.PGREST.%d",         \
-                ((sockdir) && *(sockdir) != '\0') ? (sockdir) : \
-                DEFAULT_PGSOCKET_DIR,                           \
+#define PGREST_UNIXSOCK_PATH(path, port, sockdir)                           \
+        snprintf(path, sizeof(path), "%s/.s.PGREST.%d",                     \
+                ((sockdir) && *(sockdir) != '\0') ? (sockdir) :             \
+                DEFAULT_PGSOCKET_DIR,                                       \
                 (port))
 
 typedef struct pgrest_listener_s  pgrest_listener_t;

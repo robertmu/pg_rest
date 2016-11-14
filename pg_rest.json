@@ -17,6 +17,29 @@
         "keepalive_timeout": 50000,
         "temp_buffer_path": "/tmp",
 
+        "upstream": [
+            {
+                "name": "postgres",
+                "algorithm": "split",
+                "upstream_server": [
+                    {
+                        "server_address": "172.0.0.1:6000",
+                        "master": true
+                    },
+
+                    {
+                        "server_address": "172.0.0.1:6001",
+                        "master": false
+                    },
+
+                    {
+                        "server_address": "172.0.0.1:6002",
+                        "master": false
+                    }
+                ]
+            }
+        ],
+
         "server": [
             {
                 "listen": {
@@ -45,22 +68,38 @@
                 "location": [
                     {
                         "path": "/crud",
-                        "pg_connect": {
-                            "address": "127.0.0.1:5432",
-                            "shared": true,
-                            "encode": "utf8"
+                        "handlers": {
+                            "postgres": {
+                                "pg_pass": "127.0.0.1:5432",
+                                "dbname": "db1",
+                                "encode": "utf8"
+                            },
+                            "compress": {
+                                "gzip" : true
+                            }
                         }
                     },
 
                     {
-                        "path": "/doc",
-                        "pg_connect": {
-                            "address": "127.0.0.1:5432",
-                            "shared": true,
-                            "encode": "utf8"
+                        "path": "/pub",
+                        "handlers": {
+                            "push_stream": {
+                                "mode": "pub",
+                                "param_name": "id",
+                                "store_message": true
+                            }
+                        }
+                    },
+
+                    {
+                        "path": "/sub",
+                        "handlers": {
+                            "push_stream": {
+                                "mode": "sub",
+                                "subscriber": "websocket"
+                            }
                         }
                     }
-
                 ]
             },
 
@@ -89,7 +128,44 @@
                 "ssl_certificate_key": "cert.key",
                 "ssl_session_cache": true,
                 "ssl_session_timeout": 300000,
-                "client_header_timeout": 60000
+                "client_header_timeout": 60000,
+                "location": [
+                    {
+                        "path": "/crud",
+                        "handlers": {
+                            "postgres": {
+                                "pg_pass": "postgres",
+                                "dbname": "db1",
+                                "encode": "utf8"
+                            },
+                            "compress": {
+                                "gzip" : true
+                            }
+                        }
+                    },
+
+                    {
+                        "path": "/pub",
+                        "handlers": {
+                            "push_stream": {
+                                "mode": "pub",
+                                "param_name": "id",
+                                "store_message": true
+                            }
+                        }
+                    },
+
+                    {
+                        "path": "/sub",
+                        "handlers": {
+                            "push_stream": {
+                                "mode": "sub",
+                                "subscriber": "websocket"
+                            }
+                        }
+                    }
+
+                ]
             },
 
             {

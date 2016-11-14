@@ -15,9 +15,6 @@
 
 /* FIXME Maybe we need to modify libevent */
 #define pgrest_event_dispatch(b)     event_base_loop(b, EVLOOP_ONCE)
-/*
- *#define pgrest_event_run_pending(b)  event_base_loop(b, EVLOOP_NONBLOCK)
- */
 #define pgrest_event_run_pending(b)  
 
 static inline int 

@@ -20,11 +20,6 @@ typedef struct pgrest_buffer_s   pgrest_buffer_t;
 typedef struct pgrest_chain_s    pgrest_chain_t;
 
 typedef struct {
-    char                        *base;
-    size_t                       len;
-} pgrest_iovec_t;
-
-typedef struct {
     MemoryContext                mctx;
     pgrest_chain_t              *chain;
 } pgrest_mpool_t;
@@ -32,9 +27,9 @@ typedef struct {
 struct pgrest_buffer_s {
     size_t                       capacity;
     size_t                       size;
-    char                        *pos;
+    unsigned char               *pos;
     evutil_socket_t              fd;
-    char                         start[FLEXIBLE_ARRAY_MEMBER];
+    unsigned char                start[FLEXIBLE_ARRAY_MEMBER];
 };
 
 struct pgrest_chain_s {
@@ -47,7 +42,7 @@ pgrest_iovec_init(const void *base, size_t len)
 {
     pgrest_iovec_t vec;
 
-    vec.base = (char *)base;
+    vec.base = (unsigned char *)base;
     vec.len = len;
 
     return vec;
@@ -86,16 +81,16 @@ pgrest_mpool_free(void *p)
 
 pgrest_mpool_t *pgrest_mpool_create(void);
 
-#define pgrest_buffer_init(b, c, s, p, f)                       \
-do {                                                            \
-    (b)->capacity = (c);                                        \
-    (b)->size = (s);                                            \
-    (b)->pos = (p);                                             \
-    (b)->fd = (f);                                              \
+#define pgrest_buffer_init(b, c, s, p, f)                                   \
+do {                                                                        \
+    (b)->capacity = (c);                                                    \
+    (b)->size = (s);                                                        \
+    (b)->pos = (p);                                                         \
+    (b)->fd = (f);                                                          \
 } while (0)
 
-#define pgrest_free_chain(pool, cl)                             \
-    cl->next = pool->chain;                                     \
+#define pgrest_free_chain(pool, cl)                                         \
+    cl->next = pool->chain;                                                 \
     pool->chain = cl
 
 pgrest_buffer_t *pgrest_buffer_create(pgrest_mpool_t *pool, size_t size);

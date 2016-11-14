@@ -224,7 +224,7 @@ fail:
 void 
 pgrest_buffer_free(pgrest_buffer_t *buffer)
 {
-    if (buffer->fd != -1) {
+    if (buffer->fd != (evutil_socket_t) -1) {
         close(buffer->fd);
         munmap((void *)buffer, topagesize(buffer->capacity));
     } else {

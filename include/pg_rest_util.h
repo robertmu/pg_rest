@@ -13,8 +13,16 @@
 #include "pg_rest_config.h"
 #include "pg_rest_core.h"
 
-/* True iff e is an error that means a read/write operation can be retried. */
-#define PGREST_UTIL_ERR_RW_RETRIABLE(e)             \
+typedef struct pgrest_iovec_s    pgrest_iovec_t;
+typedef pgrest_iovec_t           pgrest_string_t;
+
+struct pgrest_iovec_s {
+    unsigned char               *base;
+    size_t                       len;
+};
+
+/* True iff e is an error that means a read/write operation can be retried */
+#define PGREST_UTIL_ERR_RW_RETRIABLE(e)                                         \
     ((e) == EAGAIN || (e) == EWOULDBLOCK || (e) == EINTR)
 
 #if PGREST_DEBUG
@@ -38,9 +46,8 @@
 #define ALLOCSET_BUFFER_MINSIZE   (4 * 1024)
 #define ALLOCSET_BUFFER_INITSIZE  (8 * 1024)
 #define ALLOCSET_BUFFER_MAXSIZE   (8 * 1024)
-#define ALLOCSET_BUFFER_SIZES                       \
+#define ALLOCSET_BUFFER_SIZES                                                   \
     ALLOCSET_BUFFER_MINSIZE, ALLOCSET_BUFFER_INITSIZE, ALLOCSET_BUFFER_MAXSIZE
-
 
 #if PGSQL_VERSION < 95
 #if defined(__GNUC__) || defined(__IBMC__)
@@ -51,6 +58,16 @@
 #endif
 
 #define PGREST_MEMBER_TO_STRUCT(s, m, p) ((s *)((char *)(p) - offsetof(s, m)))
+
+#define pgrest_string_set(str, text)                                            \
+    (str)->len = sizeof(text) - 1; (str)->base = (unsigned char *) text
+#define pgrest_string_null(str)   (str)->len = 0; (str)->base = NULL
+
+
+typedef struct {
+    pgrest_string_t key;
+    pgrest_string_t value;
+} pgrest_param_t;
 
 void *pgrest_util_alloc_(MemoryContext mctx, Size size);
 void *pgrest_util_calloc_(MemoryContext mctx, Size n, Size size);
@@ -66,5 +83,6 @@ MemoryContext pgrest_util_mctx_create(const char *name,
                                       Size max_size);
 evutil_socket_t pgrest_util_mkstemp(const char *path);
 int   pgrest_util_ncpu(void);
+int   pgrest_util_count_params(pgrest_string_t path);
 
 #endif /* PG_REST_UTIL_H */

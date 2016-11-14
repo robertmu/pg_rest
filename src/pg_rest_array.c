@@ -52,6 +52,23 @@ pgrest_array_push(pgrest_array_t *array)
     return elt;
 }
 
+void *
+pgrest_array_push_head(pgrest_array_t *array)
+{
+    void *elt;
+
+    elt = pgrest_array_push(array);
+    if (array->size == 1) {
+        return elt;
+    }
+
+    memmove((char *)array->elts + array->elt_size,
+            array->elts,
+            (array->size - 1) * array->elt_size);
+
+    return array->elts;
+}
+
 void
 pgrest_array_copy(pgrest_array_t *array_dst, pgrest_array_t *array_src)
 {

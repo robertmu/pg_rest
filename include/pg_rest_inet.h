@@ -13,18 +13,18 @@
 #include "pg_rest_config.h"
 #include "pg_rest_core.h"
 
-#define PGREST_INET_ADDRSTRLEN   (sizeof("255.255.255.255"))
+#define PGREST_INET_ADDRSTRLEN  (sizeof("255.255.255.255"))
 #define PGREST_INET6_ADDRSTRLEN                                                 \
     (sizeof("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"))
 #define PGREST_UNIX_ADDRSTRLEN                                                  \
     (sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path))
 
 #if HAVE_UNIX_SOCKETS
-#define PGREST_SOCKADDR_STRLEN   (sizeof("unix:") - 1 + PGREST_UNIX_ADDRSTRLEN)
+#define PGREST_SOCKADDR_STRLEN (sizeof("unix:") - 1 + PGREST_UNIX_ADDRSTRLEN)
 #elif HAVE_IPV6
-#define PGREST_SOCKADDR_STRLEN   (PGREST_INET6_ADDRSTRLEN + sizeof("[]:65535") - 1)
+#define PGREST_SOCKADDR_STRLEN (PGREST_INET6_ADDRSTRLEN + sizeof("[]:65535") - 1)
 #else
-#define PGREST_SOCKADDR_STRLEN   (PGREST_INET_ADDRSTRLEN + sizeof(":65535") - 1)
+#define PGREST_SOCKADDR_STRLEN (PGREST_INET_ADDRSTRLEN + sizeof(":65535") - 1)
 #endif
 
 typedef union {

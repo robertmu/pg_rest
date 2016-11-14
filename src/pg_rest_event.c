@@ -54,10 +54,10 @@ pgrest_event_del(struct event *ev, short events)
 
 struct event *
 pgrest_event_new(struct event_base *base, 
-                      evutil_socket_t fd, 
-                      short events, 
-                      event_callback_fn handler, 
-                      void *arg)
+                 evutil_socket_t fd, 
+                 short events, 
+                 event_callback_fn handler, 
+                 void *arg)
 {
     return event_new(base, fd, events, handler, arg); 
 }
