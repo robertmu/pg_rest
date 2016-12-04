@@ -143,7 +143,18 @@ pgrest_conn_recv(pgrest_connection_t *conn, unsigned char *buf, size_t size)
     do {
         n = recv(conn->fd, buf, size, 0);
 
-        if (n >= 0) {
+        if (n == 0) {
+            conn->ready = 0;
+            return 0;
+        }
+
+        if (n > 0) {
+            if ((size_t) n < size
+                && !(pgrest_event_get_events(conn->rev) & EV_ET))
+            {
+                conn->ready = 0;
+            }
+
             return n;
         }
 
@@ -155,6 +166,8 @@ pgrest_conn_recv(pgrest_connection_t *conn, unsigned char *buf, size_t size)
             break;
         }
     } while (err == EINTR);
+
+    conn->ready = 0;
 
     return n;
 }
@@ -169,6 +182,7 @@ pgrest_conn_send(pgrest_connection_t *conn, unsigned char *buf, size_t size)
         n = send(conn->fd, buf, size, 0);
 
         if (n >= 0) {
+            conn->sent += n;
             return n;
         }
 
@@ -182,6 +196,134 @@ pgrest_conn_send(pgrest_connection_t *conn, unsigned char *buf, size_t size)
         }
     }
 }
+
+bool
+pgrest_conn_local_sockaddr(pgrest_connection_t *conn, 
+                           pgrest_string_t *s,
+                           bool port)
+{
+    socklen_t             len;
+    pgrest_uint_t         addr;
+    pgrest_sockaddr_t     sa;
+    struct sockaddr_in   *sin;
+#ifdef HAVE_IPV6
+    pgrest_uint_t         i;
+    struct sockaddr_in6  *sin6;
+#endif
+
+    addr = 0;
+    if (conn->local_socklen) {
+        switch (conn->local_sockaddr->sa_family) {
+#ifdef HAVE_IPV6
+        case AF_INET6:
+            sin6 = (struct sockaddr_in6 *) conn->local_sockaddr;
+
+            for (i = 0; addr == 0 && i < 16; i++) {
+                addr |= sin6->sin6_addr.s6_addr[i];
+            }
+            break;
+#endif
+#ifdef HAVE_UNIX_SOCKETS
+        case AF_UNIX:
+            addr = 1;
+            break;
+#endif
+        default: /* AF_INET */
+            sin = (struct sockaddr_in *) conn->local_sockaddr;
+            addr = sin->sin_addr.s_addr;
+            break;
+        }
+    }
+
+    if (addr == 0) {
+        len = sizeof(pgrest_sockaddr_t);
+
+        if (getsockname(conn->fd, &sa.sockaddr, &len) == -1) {
+            ereport(LOG,
+                    (errcode_for_socket_access(),
+                     errmsg(PGREST_PACKAGE " " "getsockname() failed: %m")));
+            return false;
+        }
+
+        conn->local_sockaddr = pgrest_mpool_alloc(conn->pool, len);
+        if (conn->local_sockaddr == NULL) {
+            return false;
+        }
+
+        memcpy(conn->local_sockaddr, &sa, len);
+        conn->local_socklen = len;
+    }
+
+    if (s == NULL) {
+        return true;
+    }
+
+    (void) pgrest_inet_ntop(conn->local_sockaddr, 
+                            conn->local_socklen, 
+                            (char *)s->base, 
+                            s->len,
+                            port);
+    s->len = strlen((char *)s->base);
+    return true;
+}
+
+#if defined(__FreeBSD__)
+int
+pgrest_conn_tcp_nopush(pgrest_connection_t *conn)
+{
+    int  tcp_nopush;
+
+    tcp_nopush = 1;
+
+    return setsockopt(conn->fd, IPPROTO_TCP, TCP_NOPUSH,
+                      (const void *) &tcp_nopush, sizeof(int));
+}
+
+int
+pgrest_conn_tcp_push(pgrest_connection_t *conn)
+{
+    int  tcp_nopush;
+
+    tcp_nopush = 0;
+
+    return setsockopt(conn->fd, IPPROTO_TCP, TCP_NOPUSH,
+                      (const void *) &tcp_nopush, sizeof(int));
+}
+#elif defined(__linux__)
+int
+pgrest_conn_tcp_nopush(pgrest_connection_t *conn)
+{
+    int  cork;
+
+    cork = 1;
+
+    return setsockopt(conn->fd, IPPROTO_TCP, TCP_CORK,
+                      (const void *) &cork, sizeof(int));
+}
+
+int
+pgrest_conn_tcp_push(pgrest_connection_t *conn)
+{
+    int  cork;
+
+    cork = 0;
+
+    return setsockopt(conn->fd, IPPROTO_TCP, TCP_CORK,
+                      (const void *) &cork, sizeof(int));
+}
+#else
+int
+pgrest_conn_tcp_nopush(pgrest_connection_t *conn)
+{
+    return 0;
+}
+
+int
+pgrest_conn_tcp_push(pgrest_connection_t *conn)
+{
+    return 0;
+}
+#endif
 
 static bool
 pgrest_conn_worker_init(void *data, void *base)

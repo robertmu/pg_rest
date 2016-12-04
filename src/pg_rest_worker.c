@@ -17,31 +17,31 @@
 
 typedef struct {
 #if PGSQL_VERSION >= 95
-    pg_atomic_uint32       connections;
+    pg_atomic_uint32                connections;
 #else
-    slock_t                stat_mutex;
-    uint32                 connections;
+    slock_t                         stat_mutex;
+    uint32                          connections;
 #endif
 } pgrest_worker_stat_t;
 
 typedef union
 {
-    pgrest_worker_stat_t   stat;
-    char                   pad[PG_CACHE_LINE_SIZE];
+    pgrest_worker_stat_t            stat;
+    char                            pad[PG_CACHE_LINE_SIZE];
 } pgrest_worker_stat_paded_t;
 
 typedef struct {
-    const char            *name;
-    pgrest_worker_hook_pt  startup;
-    pgrest_worker_hook_pt  shutdown;
-    void                  *data;
+    const char                     *name;
+    pgrest_worker_hook_pt           startup;
+    pgrest_worker_hook_pt           shutdown;
+    void                           *data;
 } pgrest_worker_hook_t;
 
 static volatile sig_atomic_t        pgrest_worker_reconfigure = false;
-static volatile sig_atomic_t        pgrest_worker_terminate = false;
 static List                        *pgrest_worker_hooks = NIL;
 static pgrest_worker_stat_paded_t  *pgrest_worker_stat = NULL;
 
+sig_atomic_t                        pgrest_worker_terminate = false;
 int                                 pgrest_worker_index;
 bool                                pgrest_worker_event_error = false;
 
@@ -313,10 +313,8 @@ pgrest_worker_event_dispatch(struct event_base *base,
         return true;
     }
 
-    if (!pgrest_acceptor_mutex_held && 
-            !pgrest_event_add(ev_timer, EV_TIMEOUT,
-                              pgrest_setting.
-                              acceptor_mutex_delay))
+    if (!pgrest_acceptor_mutex_held && !pgrest_event_add(ev_timer, EV_TIMEOUT,
+                                            pgrest_setting.acceptor_mutex_delay))
     {
         return false;
     }
@@ -326,8 +324,7 @@ pgrest_worker_event_dispatch(struct event_base *base,
 
     if (pgrest_acceptor_mutex_held) {
         pgrest_acceptor_unlock_mutex();
-    } else if (!pgrest_event_del(ev_timer, 
-                                 EV_TIMEOUT)) {
+    } else if (!pgrest_event_del(ev_timer, EV_TIMEOUT)) {
         return false;
     }
 

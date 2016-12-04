@@ -15,8 +15,20 @@
 #include "pg_rest_config.h"
 #include "pg_rest_core.h"
 
+int pgrest_tcp_nodelay_and_nopush;
+
+void
+pgrest_os_init(void)
+{
+    pgrest_uint_t  i;
+
+    pgrest_pagesize = getpagesize();
+    for (i = pgrest_pagesize; i >>= 1; pgrest_pagesize_shift++) { /* void */ }
+}
+
 MemoryContext
-pgrest_util_mctx_create(const char *name,
+pgrest_util_mctx_create(MemoryContext parent,
+                        const char *name,
                         Size min_size,
                         Size init_size,
                         Size max_size)
@@ -26,7 +38,7 @@ pgrest_util_mctx_create(const char *name,
 
     PG_TRY();
     {
-        mctx = AllocSetContextCreate(NULL, 
+        mctx = AllocSetContextCreate(parent, 
                                      name, 
                                      min_size,
                                      init_size,
@@ -62,6 +74,8 @@ pgrest_util_alloc_(MemoryContext mctx, Size size)
 
     mctx->isReset = false;
 
+    /* TODO log iff failed */
+
     return (*mctx->methods->alloc) (mctx, size);
 }
 
@@ -76,15 +90,43 @@ pgrest_util_calloc_(MemoryContext mctx, Size n, Size size)
         return NULL;
     }
 
-    MemSet(ret, 0, total);
+    MemSetAligned(ret, 0, total);
 
     return ret;
 }
 
-void  
-pgrest_util_free_(void *pointer)
+void *
+pgrest_util_realloc_(void *pointer, Size size)
 {
-    pfree(pointer);
+    MemoryContext context;
+
+    if (!AllocSizeIsValid(size)) {
+        ereport(LOG, (errmsg(PGREST_PACKAGE " " "invalid memory "
+                              "alloc request size %zu", size)));
+        return NULL;
+    }
+
+    /*
+     * Try to detect bogus pointers handed to us, poorly though we can.
+     * Presumably, a pointer that isn't MAXALIGNED isn't pointing at an
+     * allocated chunk.
+     */
+    Assert(pointer != NULL);
+    Assert(pointer == (void *) MAXALIGN(pointer));
+
+    /*
+     * OK, it's probably safe to look at the chunk header.
+     */
+    context = ((StandardChunkHeader *)
+               ((char *) pointer - STANDARDCHUNKHEADERSIZE))->context;
+
+    AssertArg(MemoryContextIsValid(context));
+
+    /* isReset must be false already */
+    Assert(!context->isReset);
+
+    /* TODO log iff failed */
+    return (*context->methods->realloc) (context, pointer, size);
 }
 
 void
@@ -112,32 +154,6 @@ pgrest_util_sort(void *base, size_t n, size_t size,
     }
 
     pfree(p);
-}
-
-int 
-pgrest_util_atoi(const char *arg, size_t len)
-{
-    char buff[32];
-
-    memcpy(buff, arg, len);
-    buff[len] = '\0';
-
-    return atoi(buff);
-}
-
-char *
-pgrest_util_strlchr(char *p, char *last, char c)
-{
-    while (p < last) {
-
-        if (*p == c) {
-            return p;
-        }
-
-        p++;
-    }
-
-    return NULL;
 }
 
 evutil_socket_t
@@ -168,24 +184,4 @@ pgrest_util_ncpu(void)
     GetNativeSystemInfo(&si);
     return (int)si.dwNumberOfProcessors;
 #endif
-}
-
-int
-pgrest_util_count_params(pgrest_string_t path)
-{
-    int i, n = 0;
-
-    for (i = 0; i< path.len; i++) {
-        if (path.base[i] != ':' && path.base[i] != '*') {
-            continue;
-        }
-
-        n++;
-    }
-
-    if (n >= 255) {
-        n = 255;
-    }
-
-    return n;
 }

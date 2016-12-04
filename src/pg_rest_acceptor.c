@@ -231,7 +231,7 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
 
         conn->type = SOCK_STREAM;
 
-        if ((conn->pool = pgrest_mpool_create()) == NULL) {
+        if ((conn->pool = pgrest_mpool_create(NULL)) == NULL) {
             pgrest_acceptor_close_conn(conn);
             return;
         }
@@ -272,10 +272,10 @@ pgrest_acceptor_accept_handler(evutil_socket_t afd, short events, void *arg)
             }
 
             (void) pgrest_inet_ntop(conn->sockaddr, 
-                                         conn->socklen, 
-                                         conn->addr_text, 
-                                         listener->addr_text_max_len,
-                                         false);
+                                    conn->socklen, 
+                                    conn->addr_text, 
+                                    listener->addr_text_max_len,
+                                    false);
         }
 
         listener->handler(conn);

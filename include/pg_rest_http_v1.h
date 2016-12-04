@@ -14,4 +14,10 @@
 #include "pg_rest_core.h"
 #include "pg_rest_http.h"
 
+void
+pgrest_http_init_handler(evutil_socket_t fd, short events, void *arg);
+void
+pgrest_http_header_handler(evutil_socket_t fd, short events, void *arg);
+
+
 #endif /* PG_REST_HTTP_V1_H */

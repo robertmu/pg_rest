@@ -291,7 +291,7 @@ pgrest_rtree_add(pgrest_rtree_node_t *node, pgrest_string_t path, void *handler)
     unsigned char         c;
     bool                  found;
     pgrest_string_t       full_path  = path;
-    int                   num_params = pgrest_util_count_params(path);
+    int                   num_params = pgrest_count_params(path);
 
     node->priority++;
 

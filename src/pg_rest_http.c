@@ -85,7 +85,13 @@ pgrest_http_add_server(pgrest_conf_http_server_t *conf_server,
     pgrest_conf_http_server_t **server;
 
     if (addr->servers.elts == NULL) {
-        pgrest_array_init(&addr->servers, 2, sizeof(pgrest_conf_http_server_t *));
+        if (pgrest_array_init(&addr->servers, 
+                              CurrentMemoryContext, 
+                              2, 
+                              sizeof(pgrest_conf_http_server_t *)) == false) 
+        {
+            return false;
+        }
     } else {
         server = addr->servers.elts;
         for (i = 0; i < addr->servers.size; i++) {
@@ -98,6 +104,10 @@ pgrest_http_add_server(pgrest_conf_http_server_t *conf_server,
     }
 
     server = pgrest_array_push(&addr->servers);
+    if (server == NULL) {
+        return false;
+    }
+
     *server = conf_server;
 
     return true;
@@ -113,7 +123,13 @@ pgrest_http_add_address(pgrest_conf_http_server_t *conf_server,
     pgrest_http_server_name_t *sn;
 
     if (port->addrs.elts == NULL) {
-        pgrest_array_init(&port->addrs, 2, sizeof(pgrest_http_conf_addr_t));
+        if (pgrest_array_init(&port->addrs, 
+                              CurrentMemoryContext, 
+                              2, 
+                              sizeof(pgrest_http_conf_addr_t)) == false) 
+        {
+            return false;
+        }
     }
 
     /* TODO  */
@@ -131,6 +147,9 @@ pgrest_http_add_address(pgrest_conf_http_server_t *conf_server,
 #endif
 
     addr = pgrest_array_push(&port->addrs);
+    if (addr == NULL) {
+        return false;
+    }
 
     addr->opt = *conf_listener;
     addr->default_server = conf_server;
@@ -247,6 +266,9 @@ pgrest_http_add_listen(pgrest_conf_http_server_t *conf_server,
     }
 
     port = pgrest_array_push(ports);
+    if (port == NULL) {
+        return false;
+    }
 
     port->family = sa->sa_family;
     port->port = port_number;
@@ -506,6 +528,7 @@ void
 pgrest_http_setup_configurators(void)
 {
     /* http handler&filter configure handler*/
+    pgrest_http_upstream_conf_register();
     pgrest_http_postgres_conf_register();
     pgrest_http_push_stream_conf_register();
 }
@@ -517,12 +540,24 @@ pgrest_http_init(pgrest_setting_t *setting)
     pgrest_conf_http_server_t *conf_server;
     pgrest_conf_listener_t    *conf_listener;
 
+    if (!pgrest_http_upstream_init()) {
+        ereport(ERROR,
+                (errmsg(PGREST_PACKAGE " " "initialize http upstream failed")));
+    }
+
     conf_server = setting->conf_http_servers.elts;
     for (i = 0; i < setting->conf_http_servers.size; i++) {
         pgrest_rtree_walker(conf_server[i].paths, pgrest_http_pathtree_waler);
     }
 
-    pgrest_http_ports = pgrest_array_create(2, sizeof(pgrest_http_conf_port_t));
+    pgrest_http_ports = pgrest_array_create(CurrentMemoryContext, 
+                                            2, 
+                                            sizeof(pgrest_http_conf_port_t));
+    if (pgrest_http_ports == NULL) {
+        ereport(ERROR,
+                (errmsg(PGREST_PACKAGE " " "out of memory")));
+    }
+
     conf_listener = setting->conf_listeners.elts;
     for (i = 0; i < setting->conf_listeners.size; i++) {
         if(!pgrest_http_add_listen(&conf_server[i], 

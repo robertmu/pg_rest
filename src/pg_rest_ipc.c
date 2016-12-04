@@ -22,13 +22,8 @@
 #endif
 
 typedef struct {
-    pgrest_connection_t         *conn;
-    pgrest_buffer_t             *buffer;
-} pgrest_ipc_conn_t;
-
-typedef struct {
     evutil_socket_t              sockets[2];
-    pgrest_ipc_conn_t           *iconn;
+    pgrest_connection_t         *conn;
 } pgrest_ipc_data_t;
 
 static pgrest_ipc_data_t        *pgrest_ipc_data;
@@ -37,27 +32,31 @@ static pgrest_ipc_msg_handler_pt pgrest_ipc_msg_handlers[PGREST_IPC_CMD_MAX];
 bool 
 pgrest_ipc_send_notify(int dest_worker, ev_uint8_t command)
 {
-    pgrest_ipc_conn_t *iconn;
-    pgrest_iovec_t     iovec;
+    pgrest_connection_t *conn;
+    pgrest_iovec_t       iovec;
 
-    iconn = pgrest_ipc_data[dest_worker].iconn;
-    if (iconn == NULL) {
+    conn = pgrest_ipc_data[dest_worker].conn;
+    if (conn == NULL) {
         ereport(WARNING, (errmsg(PGREST_PACKAGE " " "could not send notify "
                                  "to worker %d : channel has been destroyed", 
                                   dest_worker)));
         return false;
     }
 
-    iovec = pgrest_buffer_reserve(iconn->conn->pool, &iconn->buffer, 1);
-   *iovec.base = command;
-    iconn->buffer->size++;
+    iovec = pgrest_buffer_reserve(conn->pool, &conn->buffer, 1);
+    if (iovec.base == NULL) {
+        return false;
+    }
 
-    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d send %d command"
-                              " to worker %d", pgrest_worker_index, 
-                                (int)command, dest_worker)));
+   *iovec.base = command;
+    conn->buffer->size++;
+
+    debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d send %d co"
+                              "mmand to worker %d", pgrest_worker_index, 
+                               (int)command, dest_worker)));
 
     /* schedule the write */
-    (void) pgrest_event_add(iconn->conn->rev, EV_WRITE, 0);
+    (void) pgrest_event_add(conn->rev, EV_WRITE, 0);
 
     return true;
 }
@@ -70,7 +69,6 @@ pgrest_ipc_setup_handler(int worker_index,
                          event_callback_fn handler)
 {
     pgrest_connection_t *conn;
-    pgrest_ipc_conn_t   *iconn;
     struct event        *ev;
 
     if ((conn = pgrest_conn_get(fd)) == NULL) {
@@ -79,46 +77,39 @@ pgrest_ipc_setup_handler(int worker_index,
 
     conn->channel = 1;
 
-    if ((conn->pool = pgrest_mpool_create()) == NULL) {
+    if ((conn->pool = pgrest_mpool_create(NULL)) == NULL) {
         return false;
     }
 
-    if((iconn = pgrest_mpool_alloc(conn->pool, 
-                                   sizeof(pgrest_ipc_conn_t))) == NULL) 
-    {
-        return false;
-    }
-
-    iconn->conn = conn;
-    if((iconn->buffer = pgrest_buffer_create(conn->pool, 1024)) == NULL) {
+    if((conn->buffer = pgrest_buffer_create(conn->pool, 1024)) == NULL) {
         return false;
     }
 
     ev = events & EV_READ ? conn->rev : conn->wev;
     if (pgrest_event_assign(ev, base, 
-                            fd, events, handler, iconn) < 0) {
+                            fd, events, handler, conn) < 0) {
         return false;
     }
 
-    pgrest_event_priority_set(ev, pgrest_acceptor_use_mutex ? 1 : 0);
+    pgrest_event_priority_set(ev, PGREST_EVENT_PRIORITY);
 
     if (events & EV_READ) {
         (void) pgrest_event_add(ev, EV_READ, 0); 
     }
 
-    pgrest_ipc_data[worker_index].iconn = iconn;
+    pgrest_ipc_data[worker_index].conn = conn;
 
     return true;
 }
 
 static void
-pgrest_ipc_set_conn(pgrest_ipc_conn_t *iconn)
+pgrest_ipc_set_conn(pgrest_connection_t *conn)
 {
     int i;
 
     for (i = 0; i < pgrest_setting.worker_processes; i++) {
-        if (iconn == pgrest_ipc_data[i].iconn) {
-            pgrest_ipc_data[i].iconn = NULL;
+        if (conn == pgrest_ipc_data[i].conn) {
+            pgrest_ipc_data[i].conn = NULL;
             break;
         }
     }
@@ -129,13 +120,13 @@ pgrest_ipc_read_handler(evutil_socket_t fd, short events, void *arg)
 {
     size_t               i;
     ssize_t              result;
-    pgrest_ipc_conn_t   *iconn;
+    pgrest_connection_t *conn;
     ev_uint8_t           command[128];
 
-    iconn = (pgrest_ipc_conn_t *) arg;
+    conn = (pgrest_connection_t *) arg;
 
     for (;;) {
-        result = pgrest_conn_recv(iconn->conn, 
+        result = pgrest_conn_recv(conn, 
                                   (unsigned char *) command, 
                                   sizeof(command));
 
@@ -173,26 +164,26 @@ pgrest_ipc_read_handler(evutil_socket_t fd, short events, void *arg)
     return;
 
 fail:
-    pgrest_conn_close(iconn->conn);
-    pgrest_ipc_set_conn(iconn);
+    pgrest_conn_close(conn);
+    pgrest_ipc_set_conn(conn);
 }
 
 static void 
 pgrest_ipc_write_handler(evutil_socket_t fd, short events, void *arg)
 {
     ssize_t              result;
-    pgrest_ipc_conn_t   *iconn;
+    pgrest_connection_t *conn;
     pgrest_buffer_t     *buf;
 
-    iconn = (pgrest_ipc_conn_t *) arg;
-    buf = iconn->buffer;
+    conn = (pgrest_connection_t *) arg;
+    buf = conn->buffer;
 
     if (buf->size == 0) {
-        (void) pgrest_event_del(iconn->conn->wev, EV_WRITE);
+        (void) pgrest_event_del(conn->wev, EV_WRITE);
         return;
     }
 
-    result = pgrest_conn_send(iconn->conn, buf->pos, buf->size);
+    result = pgrest_conn_send(conn, buf->pos, buf->size);
 
     if (result == 0) {
         ereport(WARNING, (errmsg(PGREST_PACKAGE " " "send() returned"
@@ -215,19 +206,19 @@ pgrest_ipc_write_handler(evutil_socket_t fd, short events, void *arg)
 
 schedule:
     if (buf->size) {
-        (void) pgrest_event_add(iconn->conn->rev, EV_WRITE, 0);
+        (void) pgrest_event_add(conn->rev, EV_WRITE, 0);
     }
 
     return;
 
 fail:
-    pgrest_conn_close(iconn->conn);
-    pgrest_ipc_set_conn(iconn);
+    pgrest_conn_close(conn);
+    pgrest_ipc_set_conn(conn);
 }
 
 void
 pgrest_ipc_setup_msg_handler(pgrest_ipc_cmd_e command, 
-                           pgrest_ipc_msg_handler_pt handler)
+                             pgrest_ipc_msg_handler_pt handler)
 {
     Assert(command < PGREST_IPC_CMD_MAX);
     pgrest_ipc_msg_handlers[command] = handler;
@@ -256,10 +247,10 @@ pgrest_ipc_worker_init(void *data, void *base)
         evutil_closesocket(sockets[1]);
 
         if (!pgrest_ipc_setup_handler(i,
-                                    base,
-                                    sockets[0], 
-                                    EV_WRITE, 
-                                    pgrest_ipc_write_handler)) 
+                                      base,
+                                      sockets[0], 
+                                      EV_WRITE, 
+                                      pgrest_ipc_write_handler)) 
         {
             return false;
         }
@@ -269,10 +260,10 @@ pgrest_ipc_worker_init(void *data, void *base)
     evutil_closesocket(sockets[0]);
 
     if (!pgrest_ipc_setup_handler(pgrest_worker_index,
-                                base,
-                                sockets[1], 
-                                EV_READ | EV_PERSIST, 
-                                pgrest_ipc_read_handler)) 
+                                  base,
+                                  sockets[1], 
+                                  EV_READ | EV_PERSIST, 
+                                  pgrest_ipc_read_handler)) 
     {
         return false;
     }
@@ -286,16 +277,16 @@ pgrest_ipc_worker_init(void *data, void *base)
 static bool
 pgrest_ipc_worker_exit(void *data, void *base)
 {
-    int                  i;
-    pgrest_ipc_conn_t   *iconn;
+    int                    i;
+    pgrest_connection_t   *conn;
 
     debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "worker %d ipc_exit",
                                pgrest_worker_index)));
 
     for (i = 0; i < pgrest_setting.worker_processes; i++) {
-        iconn = pgrest_ipc_data[i].iconn;
-        if (iconn) {
-            pgrest_conn_close(iconn->conn);
+        conn = pgrest_ipc_data[i].conn;
+        if (conn) {
+            pgrest_conn_close(conn);
         }
     }
 
@@ -354,7 +345,7 @@ pgrest_ipc_channel_init(int worker_processes)
             goto error;
         }
 
-        pgrest_ipc_data[i].iconn = NULL;
+        pgrest_ipc_data[i].conn = NULL;
     }
 
     debug_log(DEBUG1, (errmsg(PGREST_PACKAGE " " "postmaster initialize ipc "

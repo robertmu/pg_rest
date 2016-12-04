@@ -21,8 +21,6 @@ struct pgrest_setting_s {
     bool            acceptor_mutex;
     int             acceptor_mutex_delay;
     bool            acceptor_multi_accept;
-    bool            http_tcp_nopush;
-    int             http_keepalive_timeout;
     char            temp_buffer_path[MAXPGPATH];
     pgrest_array_t  conf_http_servers;
     pgrest_array_t  conf_listeners;

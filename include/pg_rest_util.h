@@ -13,14 +13,6 @@
 #include "pg_rest_config.h"
 #include "pg_rest_core.h"
 
-typedef struct pgrest_iovec_s    pgrest_iovec_t;
-typedef pgrest_iovec_t           pgrest_string_t;
-
-struct pgrest_iovec_s {
-    unsigned char               *base;
-    size_t                       len;
-};
-
 /* True iff e is an error that means a read/write operation can be retried */
 #define PGREST_UTIL_ERR_RW_RETRIABLE(e)                                         \
     ((e) == EAGAIN || (e) == EWOULDBLOCK || (e) == EINTR)
@@ -32,6 +24,7 @@ struct pgrest_iovec_s {
 #endif
 
 #define pgrest_util_alloc(mctx, size)      pgrest_util_alloc_(mctx, size)
+#define pgrest_util_realloc(pointer, size) pgrest_util_realloc_(pointer, size)
 #define pgrest_util_calloc(mctx, n, size)  pgrest_util_calloc_(mctx, n, size)
 #define pgrest_util_free(p)                pgrest_util_free_(p)
 
@@ -59,30 +52,28 @@ struct pgrest_iovec_s {
 
 #define PGREST_MEMBER_TO_STRUCT(s, m, p) ((s *)((char *)(p) - offsetof(s, m)))
 
-#define pgrest_string_set(str, text)                                            \
-    (str)->len = sizeof(text) - 1; (str)->base = (unsigned char *) text
-#define pgrest_string_null(str)   (str)->len = 0; (str)->base = NULL
+extern int pgrest_tcp_nodelay_and_nopush;
 
-
-typedef struct {
-    pgrest_string_t key;
-    pgrest_string_t value;
-} pgrest_param_t;
+static inline void  
+pgrest_util_free_(void *pointer)
+{
+    pfree(pointer);
+}
 
 void *pgrest_util_alloc_(MemoryContext mctx, Size size);
+void *pgrest_util_realloc_(void *pointer, Size size);
 void *pgrest_util_calloc_(MemoryContext mctx, Size n, Size size);
 void  pgrest_util_free_(void *pointer);
 
 void  pgrest_util_sort(void *base, size_t n, size_t size,
                        int (*cmp)(const void *, const void *));
-int   pgrest_util_atoi(const char *arg, size_t len);
-char *pgrest_util_strlchr(char *p, char *last, char c);
-MemoryContext pgrest_util_mctx_create(const char *name,
+MemoryContext pgrest_util_mctx_create(MemoryContext parent,
+                                      const char *name,
                                       Size min_size,
                                       Size init_size,
                                       Size max_size);
 evutil_socket_t pgrest_util_mkstemp(const char *path);
 int   pgrest_util_ncpu(void);
-int   pgrest_util_count_params(pgrest_string_t path);
+void  pgrest_os_init(void);
 
 #endif /* PG_REST_UTIL_H */

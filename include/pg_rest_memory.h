@@ -68,6 +68,12 @@ pgrest_mpool_alloc(pgrest_mpool_t *pool, size_t size)
 }
 
 static inline void *
+pgrest_mpool_realloc(void *pointer, size_t size)
+{
+    return pgrest_util_realloc(pointer, size);
+}
+
+static inline void *
 pgrest_mpool_calloc(pgrest_mpool_t *pool, size_t n, size_t size)
 {
     return pgrest_util_calloc(pool->mctx, n, size);
@@ -79,7 +85,29 @@ pgrest_mpool_free(void *p)
     pgrest_util_free(p);
 }
 
-pgrest_mpool_t *pgrest_mpool_create(void);
+static inline size_t
+pgrest_buffer_free_size(pgrest_buffer_t *buf)
+{
+    return buf->capacity - buf->size - (buf->pos - buf->start);
+}
+
+static inline void
+pgrest_buffer_reset(pgrest_buffer_t *buf)
+{
+    buf->size = 0;
+    buf->pos = buf->start;
+}
+
+static inline void 
+pgrest_buffer_consume(pgrest_buffer_t *buf, size_t size)
+{
+    if (buf->size == size) {
+        pgrest_buffer_reset(buf);
+    } else {
+        buf->size -= size;
+        buf->pos += size;
+    }
+}
 
 #define pgrest_buffer_init(b, c, s, p, f)                                   \
 do {                                                                        \
@@ -93,6 +121,7 @@ do {                                                                        \
     cl->next = pool->chain;                                                 \
     pool->chain = cl
 
+pgrest_mpool_t *pgrest_mpool_create(pgrest_mpool_t *parent);
 pgrest_buffer_t *pgrest_buffer_create(pgrest_mpool_t *pool, size_t size);
 pgrest_chain_t *pgrest_chain_link_alloc(pgrest_mpool_t *pool);
 bool pgrest_chain_append(pgrest_mpool_t *pool, 
@@ -103,6 +132,7 @@ pgrest_iovec_t pgrest_buffer_reserve(pgrest_mpool_t *pool,
                          pgrest_buffer_t **inbuf, 
                          size_t size);
 void pgrest_buffer_consume(pgrest_buffer_t *inbuf, size_t size);
-void pgrest_buffer_free(pgrest_buffer_t *buffer);
+void pgrest_buffer_destroy(pgrest_buffer_t *buffer);
+bool pgrest_buffer_extend(pgrest_buffer_t **inbuf);
 
 #endif /* PG_REST_MEMORY_H */

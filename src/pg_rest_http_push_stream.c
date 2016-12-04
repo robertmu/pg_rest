@@ -71,6 +71,10 @@ pgrest_http_push_stream_conf(void *parent)
     conf->mode = PGREST_HTTP_PUSH_STREAM_UNKNOW;
 
     handler = (void*)pgrest_http_handler_create(path, sizeof(*handler));
+    if (handler == NULL) {
+        return NULL;
+    }
+
     handler->super.name = "push_stream";
     handler->super.init = pgrest_http_push_stream_init;
     handler->super.fini = pgrest_http_push_stream_fini;

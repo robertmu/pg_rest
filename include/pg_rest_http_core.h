@@ -14,6 +14,8 @@
 #include "pg_rest_core.h"
 #include "pg_rest_http.h"
 
+#define PGREST_HTTP_MAX_HEADERS               20
+
 typedef struct   pgrest_http_handler_s        pgrest_http_handler_t;
 typedef struct   pgrest_http_filter_s         pgrest_http_filter_t;
 typedef struct   pgrest_http_ostream_s        pgrest_http_ostream_t;
@@ -92,5 +94,6 @@ pgrest_http_handler_create(pgrest_conf_http_path_t *path,
 pgrest_http_filter_t *
 pgrest_http_filter_create(pgrest_conf_http_path_t *path, 
                           size_t size);
+void pgrest_http_process_request(pgrest_http_request_t *req);
 
 #endif /* PG_REST_HTTP_CORE_H */

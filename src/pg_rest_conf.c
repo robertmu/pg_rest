@@ -75,6 +75,9 @@ static void  pgrest_conf_ssl_set(pgrest_conf_command_t *cmd,
 static void  pgrest_conf_http_path_set(pgrest_conf_command_t *cmd, 
                                  void *val, 
                                  void *parent);
+static void pgrest_conf_lc_set(pgrest_conf_command_t *cmd, 
+                                 void *val, 
+                                 void *parent);
 
 static pgrest_conf_command_t  pgrest_conf_static_cmds[] = {
 
@@ -154,20 +157,6 @@ static pgrest_conf_command_t  pgrest_conf_static_cmds[] = {
       0,
       PGREST_CONF_OBJECT,
       NULL },
-
-    { "tcp_nopush",
-      offsetof(pgrest_setting_t, http_tcp_nopush),
-      0,
-      0,
-      PGREST_CONF_SCALAR,
-      pgrest_conf_bool_set },
-
-    { "keepalive_timeout",
-      offsetof(pgrest_setting_t, http_keepalive_timeout),
-      1000,
-      3600000,
-      PGREST_CONF_SCALAR,
-      pgrest_conf_integer_set },
 
     { "temp_buffer_path",
       offsetof(pgrest_setting_t, temp_buffer_path),
@@ -353,12 +342,96 @@ static pgrest_conf_command_t  pgrest_conf_static_cmds[] = {
       pgrest_conf_integer_set },
 #endif
 
+    { "keepalive_timeout",
+      offsetof(pgrest_conf_http_server_t, keepalive_timeout),
+      1000,
+      3600000,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_integer_set },
+
     { "client_header_timeout",
       offsetof(pgrest_conf_http_server_t, client_header_timeout),
       1000,
       3600000,
       PGREST_CONF_SCALAR,
       pgrest_conf_integer_set },
+
+    { "client_header_buffer_size",
+      offsetof(pgrest_conf_http_server_t, client_header_buffer_size),
+      1024,
+      1024 * 8,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_integer_set },
+
+    { "client_max_header_size",
+      offsetof(pgrest_conf_http_server_t, client_max_header_size),
+      4096,
+      1024 * 1024,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_integer_set },
+
+    { "client_max_body_size",
+      offsetof(pgrest_conf_http_server_t, client_max_body_size),
+      4096,
+      2 * 1024 * 1024,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_integer_set },
+
+    { "client_body_buffer_size",
+      offsetof(pgrest_conf_http_server_t, client_body_buffer_size),
+      1024,
+      1024 * 8,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_integer_set },
+
+    { "client_body_timeout",
+      offsetof(pgrest_conf_http_server_t, client_body_timeout),
+      1000,
+      3600000,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_integer_set },
+
+    { "tcp_nopush",
+      offsetof(pgrest_conf_http_server_t, tcp_nopush),
+      0,
+      0,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_bool_set },
+
+    { "tcp_nodelay",
+      offsetof(pgrest_conf_http_server_t, tcp_nodelay),
+      0,
+      0,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_bool_set },
+
+    { "lingering_time",
+      offsetof(pgrest_conf_http_server_t, lingering_time),
+      1000,
+      3600000,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_integer_set },
+
+    { "lingering_timeout",
+      offsetof(pgrest_conf_http_server_t, lingering_timeout),
+      1000,
+      3600000,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_integer_set },
+
+    { "lingering_close",
+      offsetof(pgrest_conf_http_server_t, lingering_close),
+      0,
+      0,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_lc_set },
+
+    { "reset_timedout_connection",
+      offsetof(pgrest_conf_http_server_t, reset_timedout_connection),
+      0,
+      0,
+      PGREST_CONF_SCALAR,
+      pgrest_conf_bool_set },
 
     { "location",
       0,
@@ -452,8 +525,8 @@ pgrest_conf_address_set(pgrest_conf_command_t *cmd, void *val, void *parent)
     if (!pgrest_inet_parse_url(&u)) {
         if (u.err) {
             ereport(ERROR, 
-                    (errmsg(PGREST_PACKAGE " " "invalid value \"%s\" for "
-                            "directive \"%s\": \"%s\"", value, cmd->name, u.err)));
+                    (errmsg(PGREST_PACKAGE " " "invalid value \"%s\" for dire"
+                            "ctive \"%s\": \"%s\"", value, cmd->name, u.err)));
         }
     }
 
@@ -659,6 +732,10 @@ pgrest_conf_server_name_set(pgrest_conf_command_t *cmd, void *val, void *parent)
         char *name = (char *) lfirst(cell);
 
         sn = pgrest_array_push(&conf_http_server->server_names);
+        if (sn == NULL) {
+            ereport(ERROR, (errmsg(PGREST_PACKAGE " " "out of memory")));
+        }
+
         sn->server = conf_http_server;
         StrNCpy(sn->name, name, sizeof(sn->name));
     }
@@ -695,6 +772,26 @@ pgrest_conf_http_path_set(pgrest_conf_command_t *cmd, void *val, void *parent)
     }
 }
 
+static void  
+pgrest_conf_lc_set(pgrest_conf_command_t *cmd, void *val, void *parent)
+{
+    pgrest_conf_http_server_t *conf_http_server = parent;
+    char                      *value = val;
+
+    if (strcmp(value, "on") == 0) {
+        conf_http_server->lingering_close = PGREST_HTTP_LINGERING_ON;
+    } else if (strcmp(value, "off") == 0) {
+        conf_http_server->lingering_close = PGREST_HTTP_LINGERING_OFF;
+    } else if (strcmp(value, "always") == 0) {
+        conf_http_server->lingering_close = PGREST_HTTP_LINGERING_ALWAYS;
+    } else {
+        ereport(ERROR, 
+                (errmsg(PGREST_PACKAGE " " "invalid value for directive "
+                        "\"%s\": \"%s\" only accept \"on\" or \"off\" or"
+                        " \"always\"", cmd->name, value)));
+    }
+}
+
 static void *
 pgrest_conf_setting_create(void *parent)
 {
@@ -705,17 +802,21 @@ pgrest_conf_setting_create(void *parent)
     pgrest_setting_private->acceptor_mutex = true;
     pgrest_setting_private->acceptor_mutex_delay = 500;
     pgrest_setting_private->acceptor_multi_accept = false;
-    pgrest_setting_private->http_tcp_nopush = false;
-    pgrest_setting_private->http_keepalive_timeout = 600000;
     strcpy(pgrest_setting_private->temp_buffer_path, 
             PGREST_BUFFER_DTEMP_PATH);
 
-    pgrest_array_init(&pgrest_setting_private->conf_http_servers,
-                      2, 
-                      sizeof(pgrest_conf_http_server_t));
-    pgrest_array_init(&pgrest_setting_private->conf_listeners, 
-                      2, 
-                      sizeof(pgrest_conf_listener_t));
+    if (pgrest_array_init(&pgrest_setting_private->conf_http_servers,
+                          CurrentMemoryContext,
+                          2, 
+                          sizeof(pgrest_conf_http_server_t)) == false) {
+        return NULL;
+    }
+    if (pgrest_array_init(&pgrest_setting_private->conf_listeners, 
+                          CurrentMemoryContext,
+                          2, 
+                          sizeof(pgrest_conf_listener_t)) == false) {
+        return NULL;
+    }
 
     return pgrest_setting_private;
 }
@@ -727,6 +828,9 @@ pgrest_conf_http_server_create(void *parent)
     pgrest_conf_http_server_t *conf_http_server;
 
     conf_http_server = pgrest_array_push(&setting->conf_http_servers);
+    if (conf_http_server == NULL) {
+        return NULL;
+    }
 
     conf_http_server->server_name = "";
 #ifdef HAVE_OPENSSL
@@ -735,11 +839,31 @@ pgrest_conf_http_server_create(void *parent)
     conf_http_server->ssl_session_cache = true;
     conf_http_server->ssl_session_timeout = 1800000;
 #endif
-    conf_http_server->client_header_timeout = 5000;
+    conf_http_server->tcp_nopush = false;
+    conf_http_server->tcp_nodelay = true;
+    conf_http_server->client_header_timeout = 6000;
+    conf_http_server->client_header_buffer_size = ALLOCSET_BUFFER_MINSIZE / 2;
+    conf_http_server->client_max_header_size = ALLOCSET_BUFFER_MINSIZE;
 
-    pgrest_array_init(&conf_http_server->server_names, 
-                      2, 
-                      sizeof(pgrest_http_server_name_t));
+    conf_http_server->client_body_timeout = 6000;
+    conf_http_server->client_body_buffer_size = ALLOCSET_BUFFER_MINSIZE / 2;
+    conf_http_server->client_max_body_size = ALLOCSET_BUFFER_MINSIZE * 2;
+
+    conf_http_server->keepalive_timeout = 600000;
+
+    conf_http_server->lingering_time = 30000;
+    conf_http_server->lingering_timeout = 5000;
+    conf_http_server->lingering_close = PGREST_HTTP_LINGERING_ON;
+
+    conf_http_server->reset_timedout_connection = false;
+
+    if (pgrest_array_init(&conf_http_server->server_names, 
+                          CurrentMemoryContext,
+                          2, 
+                          sizeof(pgrest_http_server_name_t)) == false) {
+        return NULL;
+    }
+
     conf_http_server->paths = pgrest_rtree_create();
 
     conf_http_server->listen = 0;
@@ -760,6 +884,9 @@ pgrest_conf_listener_create(void *parent)
 
     setting = conf_http_server->conf_main;
     conf_listener = pgrest_array_push(&setting->conf_listeners);
+    if (conf_listener == NULL) {
+        return NULL;
+    }
 
     MemSet(conf_listener, 0, sizeof(pgrest_conf_listener_t));
 
@@ -800,8 +927,20 @@ pgrest_conf_http_path_create(void *parent)
 
     conf_http_path = palloc0(sizeof(pgrest_conf_http_path_t));
 
-    pgrest_array_init(&conf_http_path->handlers, 2, sizeof(void *));
-    pgrest_array_init(&conf_http_path->filters, 2, sizeof(void *));
+    if (pgrest_array_init(&conf_http_path->handlers, 
+                          CurrentMemoryContext, 
+                          2, 
+                          sizeof(void *)) == false) {
+        return NULL;
+    }
+
+    if (pgrest_array_init(&conf_http_path->filters, 
+                      CurrentMemoryContext, 
+                      2, 
+                      sizeof(void *)) == false) {
+        return NULL;
+    }
+
     conf_http_path->conf_server = parent;
 
     return conf_http_path;
@@ -902,7 +1041,9 @@ pgrest_conf_parse_object(const char *name, json_t *jelem, void *parent)
     object = parent;
     if (cmd->handler) {
         handler = cmd->handler;
-        object = handler(parent);
+        if((object = handler(parent)) == NULL) {
+            ereport(ERROR, (errmsg(PGREST_PACKAGE " " "out of memory")));
+        }
     }
 
     for (iter = json_object_iter(jelem); 

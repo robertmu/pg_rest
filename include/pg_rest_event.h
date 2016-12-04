@@ -13,6 +13,7 @@
 #include "pg_rest_config.h"
 #include "pg_rest_core.h"
 
+#define PGREST_EVENT_PRIORITY        pgrest_acceptor_use_mutex ? 1 : 0
 /* FIXME Maybe we need to modify libevent */
 #define pgrest_event_dispatch(b)     event_base_loop(b, EVLOOP_ONCE)
 #define pgrest_event_run_pending(b)  
@@ -32,6 +33,42 @@ pgrest_event_loop_once(struct event_base *base)
         ereport(LOG,
                 (errmsg(PGREST_PACKAGE " " "event_dispatch() failed: %m")));
     }
+}
+
+static inline short 
+pgrest_event_get_events(const struct event *ev)
+{
+    return event_get_events(ev);
+}
+
+static inline int
+pgrest_event_gettimeofday(struct event_base *base, struct timeval *tv)
+{
+    return event_base_gettimeofday_cached(base, tv);
+}
+
+static inline int 
+pgrest_event_pending(const struct event *ev, short events, struct timeval *tv)
+{
+    return event_pending(ev, events, tv);
+}
+
+static inline int 
+pgrest_event_remove_timer(struct event *ev)
+{
+    return event_remove_timer(ev);
+}
+
+static inline struct event_base *
+pgrest_event_get_base(const struct event *ev)
+{
+    return event_get_base(ev);
+}
+
+static inline void 
+pgrest_event_active(struct event *ev, short events)
+{
+    event_active(ev, events, 1);
 }
 
 bool  pgrest_event_add(struct event *ev, short events, int timeout);

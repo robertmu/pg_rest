@@ -25,4 +25,12 @@ typedef intptr_t                         pgrest_int_t;
 #define PGREST_PACKAGE                   "pg_rest"
 #define PGREST_AF_SIZE                   16
 
+#if (SIZEOF_VOID_P == 4)
+#define PGREST_MAX_TIME_T_VALUE          PG_INT32_MAX
+#define PGREST_MAX_OFF_T_VALUE           PG_INT64_MAX 
+#else /* (SIZEOF_VOID_P == 8) */
+#define PGREST_MAX_TIME_T_VALUE          PG_INT64_MAX
+#define PGREST_MAX_OFF_T_VALUE           PG_INT64_MAX 
+#endif
+
 #endif /* PG_REST_CONFIG_H */

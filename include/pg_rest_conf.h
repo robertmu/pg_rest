@@ -12,6 +12,9 @@
 
 #define PGREST_CONF_OBJECT               0x0001
 #define PGREST_CONF_SCALAR               0x0002
+#define PGREST_HTTP_LINGERING_OFF        0
+#define PGREST_HTTP_LINGERING_ON         1
+#define PGREST_HTTP_LINGERING_ALWAYS     2
 
 typedef struct pgrest_conf_command_s     pgrest_conf_command_t;
 typedef void  *(*pgrest_conf_create_pt)  (void *);
@@ -68,11 +71,23 @@ struct pgrest_conf_http_server_s {
     bool                       ssl_session_cache;
     int                        ssl_session_timeout;
 #endif
+    bool                       tcp_nopush;
+    bool                       tcp_nodelay;
+    int                        keepalive_timeout;
     int                        client_header_timeout;
+    int                        client_header_buffer_size;
+    int                        client_max_header_size;
+    int                        client_max_body_size;
+    int                        client_body_timeout;
+    int                        client_body_buffer_size;
+    int                        lingering_time;
+    int                        lingering_timeout;
+    int                        lingering_close;
+    bool                       reset_timedout_connection;
     pgrest_array_t             server_names;
     pgrest_rtree_node_t       *paths;
-    unsigned                   listen:1;
     void                      *conf_main;
+    unsigned                   listen:1;
 };
 
 typedef struct {

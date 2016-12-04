@@ -32,6 +32,11 @@ OBJS += $(patsubst %.c,%.o,$(wildcard jansson/src/*.c))
 PG_CPPFLAGS += -DHAVE_CONFIG_H -Ijansson -Ijansson/src
 EXTRA_CLEAN += $(addprefix jansson/src/,*.gcno *.gcda)
 
+# picohttpparser configuration
+OBJS += $(patsubst %.c,%.o,$(wildcard picohttpparser/*.c))
+PG_CPPFLAGS += -Ipicohttpparser
+EXTRA_CLEAN += $(addprefix picohttpparser/,*.gcno *.gcda)
+
 # test configuration
 TESTS = $(wildcard test/sql/*.sql)
 REGRESS = $(patsubst test/sql/%.sql,%,$(TESTS))

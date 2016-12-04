@@ -638,7 +638,7 @@ pgrest_inet_parse_inet6(pgrest_url_t *u)
 
     last = u->url + u->url_len;
 
-    p = pgrest_util_strlchr(host, last, ']');
+    p = pgrest_strlchr(host, last, ']');
 
     if (p == NULL) {
         u->err = "invalid host";
@@ -657,7 +657,7 @@ pgrest_inet_parse_inet6(pgrest_url_t *u)
 
         len = last - port;
 
-        n = pgrest_util_atoi(port, len);
+        n = pgrest_atoi(port, len);
 
         if (n < 1 || n > 65535) {
             u->err = "invalid port";
@@ -746,14 +746,14 @@ pgrest_inet_parse_inet(pgrest_url_t *u)
 
     last = host + u->url_len;
 
-    port = pgrest_util_strlchr(host, last, ':');
+    port = pgrest_strlchr(host, last, ':');
 
     if (port) {
         port++;
 
         len = last - port;
 
-        n = pgrest_util_atoi(port, len);
+        n = pgrest_atoi(port, len);
 
         if (n < 1 || n > 65535) {
             u->err = "invalid port";
@@ -770,7 +770,7 @@ pgrest_inet_parse_inet(pgrest_url_t *u)
     } else {
         if (u->listen) {
             /* test value as port only */
-            n = pgrest_util_atoi(host, last - host);
+            n = pgrest_atoi(host, last - host);
             if (n < 1 || n > 65535) {
                 u->err = "invalid port";
                 return false;

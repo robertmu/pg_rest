@@ -19,6 +19,10 @@ typedef void   (*pgrest_conn_handler_pt)  (pgrest_connection_t *conn);
 #define  PGREST_OK          0
 #define  PGREST_ERROR      -1
 #define  PGREST_AGAIN      -2
+#define  PGREST_BUSY       -3
+#define  PGREST_DONE       -4
+#define  PGREST_DECLINED   -5
+#define  PGREST_ABORT      -6
 
 #include <miscadmin.h>
 #include <storage/ipc.h>
@@ -58,11 +62,12 @@ typedef void   (*pgrest_conn_handler_pt)  (pgrest_connection_t *conn);
 #include <jansson.h>
 
 #include "pg_rest_util.h"
+#include "pg_rest_string.h"
+#include "pg_rest_memory.h"
 #include "pg_rest_slock.h"
 #include "pg_rest_array.h"
 #include "pg_rest_cqueue.h"
 #include "pg_rest_rtree.h"
-#include "pg_rest_memory.h"
 #include "pg_rest_inet.h"
 #include "pg_rest_guc.h"
 #include "pg_rest_conf.h"
@@ -75,5 +80,9 @@ typedef void   (*pgrest_conn_handler_pt)  (pgrest_connection_t *conn);
 #include "pg_rest_listener.h"
 #include "pg_rest_acceptor.h"
 #include "pg_rest_conn.h"
+
+#define LF     (unsigned char) '\n'
+#define CR     (unsigned char) '\r'
+#define CRLF   "\r\n"
 
 #endif /* PG_REST_CORE_H */

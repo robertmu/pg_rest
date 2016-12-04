@@ -35,6 +35,8 @@ struct pgrest_connection_s {
 
     evutil_socket_t       fd;
     pgrest_listener_t    *listener;
+    off_t                 sent;
+
     pgrest_mpool_t       *pool;
 
     int                   type;
@@ -49,9 +51,16 @@ struct pgrest_connection_s {
     struct sockaddr      *local_sockaddr;
     socklen_t             local_socklen;
 
+    pgrest_buffer_t      *buffer;
+
     /* list link in pgrest_conn_reuse_conns */
     dlist_node            elem;
 
+    event_callback_fn     rev_handler;
+    event_callback_fn     wev_handler;
+    pgrest_uint_t         requests;
+
+    unsigned              ready:1;
     unsigned              timedout:1;
     unsigned              error:1;
     unsigned              destroyed:1;
@@ -73,7 +82,16 @@ pgrest_connection_t *pgrest_conn_get(evutil_socket_t fd);
 void pgrest_conn_free(pgrest_connection_t *conn);
 void pgrest_conn_close(pgrest_connection_t *conn);
 void pgrest_conn_reusable(pgrest_connection_t *conn, int reusable);
-ssize_t pgrest_conn_recv(pgrest_connection_t *conn, unsigned char *buf, size_t size);
-ssize_t pgrest_conn_send(pgrest_connection_t *conn, unsigned char *buf, size_t size);
+ssize_t pgrest_conn_recv(pgrest_connection_t *conn, 
+                         unsigned char *buf, 
+                         size_t size);
+ssize_t pgrest_conn_send(pgrest_connection_t *conn, 
+                         unsigned char *buf, 
+                         size_t size);
+bool pgrest_conn_local_sockaddr(pgrest_connection_t *conn, 
+                                pgrest_string_t *s,
+                                bool port);
+int  pgrest_conn_tcp_nopush(pgrest_connection_t *conn);
+int  pgrest_conn_tcp_push(pgrest_connection_t *conn);
 
 #endif /* PG_REST_CONN_H_ */

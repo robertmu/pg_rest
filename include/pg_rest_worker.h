@@ -16,6 +16,7 @@
 #define PGREST_MAX_WORKERS            128
 typedef bool (*pgrest_worker_hook_pt) (void *, void *);
 
+extern sig_atomic_t        pgrest_worker_terminate;
 extern int                 pgrest_worker_index;
 extern bool                pgrest_worker_event_error;
 

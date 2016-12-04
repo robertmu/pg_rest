@@ -16,12 +16,13 @@
 #include "pg_rest_core.h"
 
 pgrest_mpool_t *
-pgrest_mpool_create(void)
+pgrest_mpool_create(pgrest_mpool_t *parent)
 {
     pgrest_mpool_t *pool = NULL;
     MemoryContext   mctx = NULL;
 
-    mctx = pgrest_util_mctx_create(PGREST_PACKAGE " " "mpool",
+    mctx = pgrest_util_mctx_create(parent ? parent->mctx : NULL,
+                                   PGREST_PACKAGE " " "mpool",
                                    ALLOCSET_BUFFER_SIZES);
     if (mctx == NULL) {
         return NULL;
@@ -207,7 +208,7 @@ pgrest_buffer_reserve(pgrest_mpool_t   *pool,
 copy:
     memcpy(newb->start, buf->pos, buf->size);
     pgrest_buffer_init(newb, capacity, buf->size, newb->start, fd); 
-    pgrest_buffer_free(buf);
+    pgrest_buffer_destroy(buf);
     *inbuf = buf = newb;
 
 done:
@@ -222,7 +223,7 @@ fail:
 }
 
 void 
-pgrest_buffer_free(pgrest_buffer_t *buffer)
+pgrest_buffer_destroy(pgrest_buffer_t *buffer)
 {
     if (buffer->fd != (evutil_socket_t) -1) {
         close(buffer->fd);
@@ -232,14 +233,23 @@ pgrest_buffer_free(pgrest_buffer_t *buffer)
     }
 }
 
-void 
-pgrest_buffer_consume(pgrest_buffer_t *inbuf, size_t size)
+bool 
+pgrest_buffer_extend(pgrest_buffer_t **inbuf)
 {
-    if (inbuf->size == size) {
-        inbuf->size = 0;
-        inbuf->pos = inbuf->start;
-    } else {
-        inbuf->size -= size;
-        inbuf->pos += size;
+    void            *p;
+    pgrest_buffer_t *buf = *inbuf;
+    size_t           pos = buf->pos - buf->start;
+
+    p = pgrest_mpool_realloc(buf, buf->capacity * 2);
+
+    if (p == NULL) {
+        return false;
     }
+
+    buf = p;
+    buf->capacity *= 2;
+    buf->pos = buf->start + pos; 
+   *inbuf = buf;
+
+    return true;
 }

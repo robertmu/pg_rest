@@ -21,15 +21,6 @@ PG_MODULE_MAGIC;
 
 static MemoryContext pgrest_master_context;
 
-static void
-pgrest_os_init(void)
-{
-    pgrest_uint_t  i;
-
-    pgrest_pagesize = getpagesize();
-    for (i = pgrest_pagesize; i >>= 1; pgrest_pagesize_shift++) { /* void */ }
-}
-
 /*
  *
  * _PG_init

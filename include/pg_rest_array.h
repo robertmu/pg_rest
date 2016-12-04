@@ -15,23 +15,38 @@
 
 typedef struct {
     void           *elts;
+    MemoryContext   mctx;
     size_t          elt_size;
     pgrest_uint_t   size;
     pgrest_uint_t   capacity;
 } pgrest_array_t;
 
-#define pgrest_array_init(array, n, s)                                      \
-do {                                                                        \
-    (array)->size = 0;                                                      \
-    (array)->capacity = (n);                                                \
-    (array)->elt_size = (s);                                                \
-    (array)->elts = palloc((n) * (s));                                      \
-} while (0)
+static inline bool
+pgrest_array_init(pgrest_array_t *array,
+                  MemoryContext mctx,
+                  pgrest_uint_t capacity,
+                  size_t        elt_size)
+{
+    array->size = 0;
+    array->mctx = mctx;
+    array->capacity = capacity;
+    array->elt_size = elt_size;
 
-pgrest_array_t *pgrest_array_create(pgrest_uint_t capacity, size_t elt_size);
+    array->elts = pgrest_util_alloc(mctx, capacity * elt_size);
+
+    if (array->elts == NULL) {
+        return false;
+    }
+
+    return true;
+}
+
+pgrest_array_t *pgrest_array_create(MemoryContext mctx, 
+                                    pgrest_uint_t capacity, 
+                                    size_t elt_size);
 void  pgrest_array_destroy(pgrest_array_t *array);
 void *pgrest_array_push(pgrest_array_t *array);
 void *pgrest_array_push_head(pgrest_array_t *array);
-void  pgrest_array_copy(pgrest_array_t *array_dst, pgrest_array_t *array_src);
+bool  pgrest_array_copy(pgrest_array_t *array_dst, pgrest_array_t *array_src);
 
 #endif /* PG_REST_ARRAY_H */

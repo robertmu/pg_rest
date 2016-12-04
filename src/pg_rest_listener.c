@@ -41,7 +41,7 @@ pgrest_listener_create(void *sockaddr, socklen_t socklen)
         listener->addr_text_max_len = PGREST_INET6_ADDRSTRLEN;
         break;
 #endif
-#if HAVE_UNIX_SOCKETS
+#ifdef HAVE_UNIX_SOCKETS
     case AF_UNIX:
         listener->addr_text_max_len = PGREST_UNIX_ADDRSTRLEN;
         break;
