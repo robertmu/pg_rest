@@ -93,11 +93,11 @@ AC_CHECK_HEADER([event.h], [HAVE_EVENT=yes], [])
 dnl If we find the header file, try and link against the library
 if test "x$HAVE_EVENT" = "xyes"; then
 	dnl libevent defines event_base_new, so we'll check that directly
-	AC_CHECK_LIB([event_core], [event_self_cbarg], [EVENT_LDFLAGS="$EVENT_LDFLAGS -levent_core" HAVE_LIBEVENT=1], [])
+	AC_CHECK_LIB([event_core], [event_get_fd], [EVENT_LDFLAGS="$EVENT_LDFLAGS -levent_core" HAVE_LIBEVENT=1], [])
 	if test "x$HAVE_LIBEVENT" = "x"; then
         dnl No event library was found; issue a warning to the console
 		dnl AC_MSG_ERROR([Could not find libevent. Please install libevent and libevent-devel.])
-		AC_MSG_ERROR([library 'libevent' (version >= 2.1.1) is required. Please upgrade your libevent])
+		AC_MSG_ERROR([library 'libevent' (version >= 2.0.1) is required. Please upgrade your libevent])
 	fi
 else
 	dnl No event header was found; issue a warning to the console

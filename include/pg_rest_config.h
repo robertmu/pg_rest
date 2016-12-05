@@ -17,6 +17,8 @@
 #if PGSQL_VERSION < 95
 #define PG_CACHE_LINE_SIZE               128
 #define CACHELINEALIGN(LEN)              TYPEALIGN(PG_CACHE_LINE_SIZE, (LEN))
+#define PG_INT32_MAX                     2147483647
+#define PG_INT64_MAX                     9223372036854775807LL
 #endif
 
 typedef uintptr_t                        pgrest_uint_t;

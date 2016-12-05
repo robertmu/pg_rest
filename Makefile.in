@@ -27,6 +27,11 @@ PG_CPPFLAGS += @CPPFLAGS@ -Iinclude
 SHLIB_LINK += @SHLIB_LINK@
 EXTRA_CLEAN += $(addprefix src/,*.gcno *.gcda) # clean up after profiling runs
 
+# handler configuration
+OBJS += $(patsubst %.c,%.o,$(wildcard src/handler/*.c))
+PG_CPPFLAGS += -Iinclude/handler
+EXTRA_CLEAN += $(addprefix src/handler/,*.gcno *.gcda)
+
 # jansson configuration
 OBJS += $(patsubst %.c,%.o,$(wildcard jansson/src/*.c))
 PG_CPPFLAGS += -DHAVE_CONFIG_H -Ijansson -Ijansson/src

@@ -1,0 +1,17 @@
+branches:
+    only:
+    - develop
+script:
+  - ./autogen.sh
+  - ./configure
+  - make
+  - sudo make install
+language: c
+compiler:
+  - gcc
+  - clang
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install libevent-dev
+  - sudo apt-get install postgresql-server-dev-9.4
+  - sudo apt-get install autoconf automake libtool

@@ -79,24 +79,30 @@ pgrest_worker_signal_setup(struct event_base *base)
     struct event *ev;
 
     if ((ev = pgrest_event_new(base, SIGHUP,
-                               EV_SIGNAL | EV_PERSIST, 
+                               EV_SIGNAL|EV_PERSIST, 
                                pgrest_worker_signal_handler, 
-                               pgrest_event_self_cbarg())) ==  NULL) 
+                               NULL)) ==  NULL) 
     {
         ereport(ERROR, (errmsg(PGREST_PACKAGE " " "create"
                                 " event object failed")));
     }
+    (void) pgrest_event_assign(ev, base, SIGHUP, 
+                               EV_SIGNAL|EV_PERSIST, 
+                               pgrest_worker_signal_handler, ev);
     pgrest_event_priority_set(ev, 0);
     (void) pgrest_event_add(ev, EV_SIGNAL, 0);
 
     if ((ev = pgrest_event_new(base, SIGTERM,
                                EV_SIGNAL | EV_PERSIST, 
                                pgrest_worker_signal_handler, 
-                               pgrest_event_self_cbarg())) ==  NULL) 
+                               NULL)) ==  NULL) 
     {
         ereport(ERROR, (errmsg(PGREST_PACKAGE " " "create"
                                 " event object failed")));
     }
+    (void) pgrest_event_assign(ev, base, SIGTERM, 
+                               EV_SIGNAL|EV_PERSIST, 
+                               pgrest_worker_signal_handler, ev);
     pgrest_event_priority_set(ev, 0);
     (void) pgrest_event_add(ev, EV_SIGNAL, 0);
 
@@ -415,7 +421,10 @@ pgrest_worker_event_fini(struct event_base *base,
     }
 
     pgrest_event_base_free(base);
+    /* TODO event version dectet */
+#if 0
     pgrest_event_global_shutdown();
+#endif
 }
 
 static void

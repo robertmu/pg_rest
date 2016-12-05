@@ -69,7 +69,9 @@ pgrest_http_add_listener(pgrest_http_conf_addr_t *addr)
 #endif
 #ifdef HAVE_UNIX_SOCKETS
     if (listener->sockaddr->sa_family == AF_UNIX) {
+#ifdef HAVE_REUSEPORT
         listener->reuseport = 0;
+#endif
     }
 #endif
     listener->open = 1;

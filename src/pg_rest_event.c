@@ -79,12 +79,6 @@ int pgrest_event_get_signal(const struct event *ev)
     return event_get_signal(ev);
 }
 
-void *
-pgrest_event_self_cbarg(void)
-{
-    return event_self_cbarg();
-}
-
 struct event_base *
 pgrest_event_base_new(void)
 {
@@ -103,11 +97,13 @@ pgrest_event_base_free(struct event_base *base)
     event_base_free(base);
 }
 
+#if 0
 void 
 pgrest_event_global_shutdown(void)
 {
     libevent_global_shutdown();
 }
+#endif
 
 void  
 pgrest_event_log(int severity, const char *msg)
@@ -115,10 +111,10 @@ pgrest_event_log(int severity, const char *msg)
     int         level;
 
     switch (severity) {
-    case EVENT_LOG_WARN:
+    case _EVENT_LOG_WARN:
         level = WARNING;
         break;
-    case EVENT_LOG_ERR:
+    case _EVENT_LOG_ERR:
         level = WARNING;
         break;
     default:

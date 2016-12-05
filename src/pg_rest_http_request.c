@@ -377,7 +377,8 @@ pgrest_http_set_keepalive(pgrest_http_request_t *req)
         conn->sent = 0;
         conn->destroyed = 0;
 
-        (void) pgrest_event_remove_timer(conn->rev);
+        /* TODO event version dected */
+        pgrest_event_del(conn->rev, EV_TIMEOUT);
 
         conn->rev_handler = pgrest_http_header_handler;
         pgrest_event_active(conn->rev, EV_READ);
