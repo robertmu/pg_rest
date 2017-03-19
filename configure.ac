@@ -12,8 +12,7 @@ dnl **********************************************************************
 AC_INIT()
 AC_COPYRIGHT([Copyright (c) 2015-2016, Robert Mu])
 AC_CONFIG_HEADERS([include/pg_rest_header.h jansson/jansson_private_config.h])
-AC_CONFIG_MACRO_DIR([macros])
-
+AC_CONFIG_AUX_DIR(config)
 
 dnl Invoke libtool: we do this as it is the easiest way to find the PIC
 dnl flags required to build pg_rest
